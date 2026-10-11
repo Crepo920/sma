@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Seismic Motion Alert</title>
+<style>
+  :root{
+    --cyan:#5fe0ff; --teal:#2be0bd; --red:#ff4b50; --orange:#ff9a3c;
+    --ink:#050e18; --panel:rgba(6,20,33,.82); --panel-brd:rgba(95,224,255,.22);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050e18;color:#e8f4fb;
+    font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;
+    overscroll-behavior:none; touch-action:none;}
+  canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;
+    touch-action:none; user-select:none; -webkit-user-select:none;}
+  svg#leaders{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:5;}
+
+  /* ---------- labels ---------- */
+  .lbl{position:absolute;transform:translate(-50%,-50%);
+    padding:4px 9px;border-radius:5px;background:rgba(4,16,28,.86);
+    border:1px solid rgba(95,224,255,.35);color:#dff6ff;font-size:11px;
+    font-weight:700;letter-spacing:.06em;white-space:nowrap;
+    text-shadow:0 1px 3px #000;opacity:0;transition:opacity .25s;
+    backdrop-filter:blur(4px);}
+  .lbl.on{opacity:1;}
+  .lbl.warn{border-color:rgba(255,90,95,.6);color:#ffd8da;}
+  .lbl.good{border-color:rgba(43,224,189,.6);color:#c9fff2;}
+
+  /* ---------- header ---------- */
+  #brand{position:fixed;top:22px;left:26px;z-index:6;pointer-events:none;}
+  #brand h1{margin:0;font-size:clamp(18px,2.4vw,30px);letter-spacing:.13em;
+    font-weight:800;color:#f2fbff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
+  #brand .rule{width:60px;height:2px;margin-top:9px;
+    background:linear-gradient(90deg,var(--cyan),transparent);}
+
+  /* ---------- panels ---------- */
+  .panel{position:fixed;z-index:6;background:var(--panel);
+    border:1px solid var(--panel-brd);border-radius:11px;
+    backdrop-filter:blur(11px);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #status{top:22px;right:26px;width:270px;padding:14px 16px 15px;}
+  .stage-row{display:flex;gap:9px;align-items:baseline;margin-bottom:12px;
+    padding-bottom:11px;border-bottom:1px solid rgba(95,224,255,.15);}
+  #stageNum{font-size:19px;font-weight:900;color:var(--cyan);letter-spacing:.05em;}
+  #stageName{font-size:10px;font-weight:800;letter-spacing:.16em;color:#8fd8ee;}
+  .stat{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
+    font-size:11.5px;color:#a9c6d8;border-bottom:1px solid rgba(95,224,255,.08);}
+  .stat:last-of-type{border-bottom:0;}
+  .stat strong{color:#eefaff;font-weight:800;text-align:right;}
+
+  #timerBox{margin-top:12px;padding-top:11px;border-top:1px solid rgba(95,224,255,.15);}
+  .timer-line{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:9.5px;letter-spacing:.16em;color:#8fd8ee;font-weight:800;}
+  #timerNum{font-size:22px;font-weight:900;color:#ffe6a8;
+    font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+  .timer-bar{height:6px;margin-top:7px;border-radius:99px;background:#0d2a3d;overflow:hidden;}
+  #timerFill{height:100%;width:100%;border-radius:99px;
+    background:linear-gradient(90deg,var(--teal),#ffe07a,var(--red));
+    transition:width .08s linear;}
+  .timer-note{margin-top:6px;font-size:9px;color:#628ba1;letter-spacing:.04em;}
+
+  /* ---------- controls ---------- */
+  #controls{left:26px;bottom:22px;width:min(470px,calc(100vw - 52px));padding:14px 15px 13px;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn-row + .btn-row{margin-top:8px;}
+  button{border:0;border-radius:8px;font-family:inherit;font-weight:800;
+    font-size:11px;letter-spacing:.08em;padding:11px 13px;cursor:pointer;
+    color:#fff;transition:transform .13s,filter .13s,background .13s;
+    touch-action:manipulation;}
+  button:hover{filter:brightness(1.14);transform:translateY(-1px);}
+  button:active{transform:translateY(0);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none;}
+  button.primary{flex:1;background:linear-gradient(135deg,#ff4b50,#b01530);
+    box-shadow:0 0 22px rgba(255,60,75,.3);}
+  button.ghost{background:rgba(20,58,84,.75);border:1px solid rgba(95,224,255,.3);}
+  button.ghost.active{background:rgba(43,224,189,.22);border-color:var(--teal);}
+  #hint{margin:10px 0 0;font-size:10px;line-height:1.55;color:#7ba4bd;letter-spacing:.02em;}
+
+  /* ---------- narration ---------- */
+  #narration{left:50%;transform:translateX(-50%);bottom:22px;
+    width:min(600px,calc(100vw - 560px));padding:12px 16px 13px;text-align:center;}
+  #narrTitle{font-size:11px;font-weight:900;letter-spacing:.2em;color:var(--cyan);margin-bottom:5px;}
+  #narrText{font-size:11.5px;line-height:1.55;color:#b9d5e5;}
+
+  /* ---------- legend ---------- */
+  #legend{position:fixed;right:26px;bottom:22px;z-index:6;font-size:10px;
+    color:#94b6c9;background:rgba(5,18,30,.75);border:1px solid rgba(95,224,255,.18);
+    border-radius:9px;padding:9px 12px;line-height:1.85;letter-spacing:.03em;}
+  #legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;}
+
+  /* ---------- toast ---------- */
+  #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);
+    z-index:20;text-align:center;padding:22px 32px;border-radius:14px;
+    background:rgba(3,14,24,.94);border:1px solid rgba(95,224,255,.55);
+    box-shadow:0 24px 80px rgba(0,0,0,.7);opacity:0;pointer-events:none;
+    transition:opacity .4s,transform .4s;max-width:min(560px,calc(100vw - 40px));}
+  #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  #toast strong{display:block;font-size:clamp(18px,2.4vw,26px);letter-spacing:.08em;color:#fff;}
+  #toast span{display:block;margin-top:8px;font-size:12px;color:#a8c8d9;line-height:1.5;}
+
+  /* ---------- end card ---------- */
+  #endcard{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(ellipse at center,rgba(5,20,34,.86),rgba(3,10,18,.96));
+    padding:30px;backdrop-filter:blur(7px);}
+  #endcard.show{display:flex;animation:fadeIn .7s ease;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  #endcard h2{margin:0 0 6px;font-size:clamp(24px,4vw,44px);letter-spacing:.14em;
+    color:#fff;text-shadow:0 0 40px rgba(95,224,255,.4);}
+  #endcard .tagline{margin:0 0 22px;font-size:clamp(11px,1.4vw,15px);letter-spacing:.3em;
+    font-weight:800;color:var(--teal);}
+  #endcard .body{max-width:620px;margin:0 0 14px;font-size:13px;line-height:1.7;color:#c2dbe9;}
+  #endcard .disclaimer{max-width:600px;margin:0 0 26px;font-size:10.5px;line-height:1.6;
+    color:#6f95aa;font-style:italic;}
+  #endcard .btn-row{justify-content:center;}
+  #endcard button.primary{flex:0 0 auto;padding:13px 26px;}
+
+  /* ---------- loader ---------- */
+  #loader{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;background:#050e18;
+    transition:opacity .6s;}
+  #loader.hide{opacity:0;pointer-events:none;}
+  .spinner{width:34px;height:34px;border-radius:50%;
+    border:2px solid rgba(95,224,255,.18);border-top-color:var(--cyan);
+    animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .load-text{font-size:11px;letter-spacing:.22em;color:#5f8ba3;font-weight:700;}
+  .err{max-width:420px;text-align:center;font-size:12px;line-height:1.6;
+    color:#ff9a9f;padding:20px;}
+
+  /* ---------- mobile hint pill ---------- */
+  #touchHint{position:fixed;left:50%;transform:translateX(-50%);top:16px;z-index:7;
+    background:rgba(4,16,28,.85);border:1px solid rgba(95,224,255,.4);
+    color:#cbeefb;font-size:10.5px;letter-spacing:.1em;font-weight:700;
+    padding:7px 14px;border-radius:99px;pointer-events:none;opacity:0;
+    transition:opacity .4s;backdrop-filter:blur(6px);}
+  #touchHint.on{opacity:1;}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:1000px){
+    #narration{width:min(520px,calc(100vw - 60px));bottom:auto;top:110px;}
+    #legend{display:none;}
+  }
+  @media (max-width:720px){
+    #brand{left:14px;top:14px;}
+    #brand h1{font-size:15px;letter-spacing:.08em;}
+    #brand .rule{width:36px;}
+    #status{right:10px;top:10px;width:174px;padding:9px 11px;}
+    .stage-row{margin-bottom:8px;padding-bottom:8px;}
+    #stageNum{font-size:14px;} #stageName{font-size:8px;letter-spacing:.1em;}
+    .stat{font-size:9.5px;padding:4px 0;}
+    #timerNum{font-size:16px;}
+    .timer-line{font-size:8.5px;}
+    .timer-note{font-size:8px;}
+    #controls{left:10px;bottom:10px;width:calc(100vw - 20px);padding:10px;}
+    button{font-size:10px;padding:10px 11px;}
+    #hint{font-size:9px;}
+    #narration{top:auto;bottom:auto;position:fixed;top:150px;left:12px;right:12px;
+      width:auto;transform:none;padding:9px 12px;}
+    #narrTitle{font-size:9.5px;} #narrText{font-size:10.5px;}
+    #toast{padding:18px 22px;}
+    #endcard h2{font-size:22px;}
+    #endcard .body{font-size:11.5px;}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<svg id="leaders" xmlns="http://www.w3.org/2000/svg"></svg>
+<div id="labels"></div>
+
+<header id="brand">
+  <h1>Seismic Motion Alert</h1>
+  <div class="rule"></div>
+</header>
+
+<div id="touchHint">TAP "FREE LOOK" — DRAG &amp; PINCH TO EXPLORE</div>
+
+<aside id="status" class="panel">
+  <div class="stage-row">
+    <span id="stageNum">01</span>
+    <span id="stageName">SYSTEM OVERVIEW</span>
+  </div>
+  <div class="stat"><span>Simulation</span><strong id="stState">IDLE</strong></div>
+  <div class="stat"><span>Sensor depth</span><strong>7–10 ft</strong></div>
+  <div class="stat"><span>Detection signal</span><strong id="stSignal">STANDBY</strong></div>
+  <div class="stat"><span>Indoor buzzer</span><strong id="stBuzzer">OFF</strong></div>
+  <div class="stat"><span>Occupants</span><strong id="stPeople">INSIDE</strong></div>
+  <div id="timerBox">
+    <div class="timer-line"><span>WARNING WINDOW</span><span id="timerNum">18.0 s</span></div>
+    <div class="timer-bar"><div id="timerFill"></div></div>
+    <div class="timer-note">Starts at P-wave detection</div>
+  </div>
+</aside>
+
+<div id="controls" class="panel">
+  <div class="btn-row">
+    <button id="btnStart" class="primary">▶ ACTIVATE EARTHQUAKE SIMULATION</button>
+  </div>
+  <div class="btn-row">
+    <button id="btnPause" class="ghost" disabled>❚❚ PAUSE</button>
+    <button id="btnReset" class="ghost">↻ RESET</button>
+    <button id="btnFree" class="ghost">◉ FREE LOOK</button>
+    <button id="btnFull" class="ghost">⛶ FULLSCREEN</button>
+    <button id="btnSound" class="ghost">🔇 SOUND</button>
+  </div>
+  <p id="hint">Desktop: drag to orbit, scroll to zoom • Mobile: one-finger drag to rotate, pinch to zoom, two-finger drag to pan. Press FREE LOOK to inspect the underground sensor and follow the wiring.</p>
+</div>
+
+<div id="narration" class="panel">
+  <div id="narrTitle">SYSTEM OVERVIEW</div>
+  <div id="narrText">The house is intact, the occupants are inside, and the silver detection housing sits empty underground — waiting for our own system to be installed.</div>
+</div>
+
+<div id="legend">
+  <div><i style="background:#ff4b50"></i>P-wave / alert</div>
+  <div><i style="background:#ff9a3c"></i>S-wave / impact</div>
+  <div><i style="background:#3bc8ff"></i>Protected wiring</div>
+  <div><i style="background:#2be0bd"></i>Safe evacuation zone</div>
+</div>
+
+<div id="toast"><strong id="toastTitle"></strong><span id="toastText"></span></div>
+
+<div id="endcard">
+  <h2>Seismic Motion Alert</h2>
+  <p class="tagline">DETECT EARLY. ALERT QUICKLY. EVACUATE SAFELY.</p>
+  <p class="body">This educational simulation demonstrates how an early warning triggered by an incoming P-wave could alert occupants before a later, more damaging S-wave reaches a building.</p>
+  <p class="disclaimer">The 18-second warning interval is a simulated assumption and is not a guarantee of real-world warning time.</p>
+  <div class="btn-row">
+    <button id="btnReplay" class="primary">↻ REPLAY SIMULATION</button>
+    <button id="btnOverview" class="ghost">◀ RETURN TO OVERVIEW</button>
+  </div>
+</div>
+
+<div id="loader">
+  <div class="spinner"></div>
+  <div class="load-text">PREPARING SIMULATION</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   RENDERER / SCENE / CAMERA
+   ============================================================ */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050e18);
+scene.fog = new THREE.Fog(0x050e18, 38, 88);
+
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 220);
+
+/* ---------- lights ---------- */
+scene.add(new THREE.HemisphereLight(0x8fc8e8, 0x0a1622, 1.5));
+const key = new THREE.DirectionalLight(0xdcf1ff, 2.3);
+key.position.set(-9, 16, 12);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 1;
+key.shadow.camera.far = 60;
+key.shadow.camera.left = -22;
+key.shadow.camera.right = 22;
+key.shadow.camera.top = 22;
+key.shadow.camera.bottom = -18;
+key.shadow.bias = -0.0007;
+scene.add(key);
+const fill = new THREE.PointLight(0x2a86b8, 22, 42);
+fill.position.set(9, 5, 8);
+scene.add(fill);
+const underGlow = new THREE.PointLight(0x3a6f8a, 10, 20);
+underGlow.position.set(-2, -1.2, 6);
+scene.add(underGlow);
+
+/* ============================================================
+   MATERIALS
+   ============================================================ */
+const M = {
+  soilTop:   new THREE.MeshStandardMaterial({ color:0x6b5140, roughness:1 }),
+  soilMid:   new THREE.MeshStandardMaterial({ color:0x463429, roughness:1 }),
+  soilRock:  new THREE.MeshStandardMaterial({ color:0x3a3a3f, roughness:1 }),
+  ground:    new THREE.MeshStandardMaterial({ color:0x2f4a3d, roughness:0.98 }),
+  grass:     new THREE.MeshStandardMaterial({ color:0x35563f, roughness:1 }),
+  concrete:  new THREE.MeshStandardMaterial({ color:0x9dacb6, roughness:0.86 }),
+  concreteD: new THREE.MeshStandardMaterial({ color:0x6d7c88, roughness:0.9 }),
+  wallOut:   new THREE.MeshStandardMaterial({ color:0xe4d8c2, roughness:0.85 }),
+  wallWarm:  new THREE.MeshStandardMaterial({ color:0xd8c9ad, roughness:0.88 }),
+  wallIn:    new THREE.MeshStandardMaterial({ color:0xe8e0d0, roughness:0.9 }),
+  wallDark:  new THREE.MeshStandardMaterial({ color:0x7d8c99, roughness:0.88 }),
+  roof:      new THREE.MeshStandardMaterial({ color:0x3d332c, roughness:0.78 }),
+  roofTrim:  new THREE.MeshStandardMaterial({ color:0x241b16, roughness:0.82 }),
+  shutter:   new THREE.MeshStandardMaterial({ color:0x2b4a55, roughness:0.85 }),
+  trim:      new THREE.MeshStandardMaterial({ color:0xf2ebe0, metalness:0.12, roughness:0.62 }),
+  door:      new THREE.MeshStandardMaterial({ color:0x5d2f1e, roughness:0.62 }),
+  doorPanel: new THREE.MeshStandardMaterial({ color:0x4a2417, roughness:0.68 }),
+  glass:     new THREE.MeshPhysicalMaterial({ color:0x9ad8f0, roughness:0.08, metalness:0,
+                transmission:0.72, transparent:true, opacity:0.58, thickness:0.4,
+                emissive:0x0a2536, emissiveIntensity:0.55 }),
+  wood:      new THREE.MeshStandardMaterial({ color:0xa87c54, roughness:0.82 }),
+  fabricA:   new THREE.MeshStandardMaterial({ color:0x2f6a7e, roughness:0.92 }),
+  fabricB:   new THREE.MeshStandardMaterial({ color:0x8a5a3c, roughness:0.92 }),
+  metal:     new THREE.MeshStandardMaterial({ color:0xc8d0d8, metalness:0.94, roughness:0.2 }),
+  metalDark: new THREE.MeshStandardMaterial({ color:0x515c66, metalness:0.75, roughness:0.45 }),
+  wireRed:   new THREE.MeshStandardMaterial({ color:0xff3b46, emissive:0x8a0a14, emissiveIntensity:0.55, roughness:0.6 }),
+  wireBlue:  new THREE.MeshStandardMaterial({ color:0x2a9ef4, emissive:0x083a6e, emissiveIntensity:0.55, roughness:0.6 }),
+  teal:      new THREE.MeshStandardMaterial({ color:0x2be0bd, emissive:0x0a6a58, emissiveIntensity:0.55, roughness:0.6 }),
+  redLens:   new THREE.MeshStandardMaterial({ color:0xff3b4a, emissive:0x9a0a1a, emissiveIntensity:0.9, roughness:0.35 }),
+  debris:    new THREE.MeshStandardMaterial({ color:0x7e8a94, roughness:0.97 }),
+  debrisD:   new THREE.MeshStandardMaterial({ color:0x5b666f, roughness:0.97 }),
+  skin:      new THREE.MeshStandardMaterial({ color:0xe3b892, roughness:0.85 }),
+  pants:     new THREE.MeshStandardMaterial({ color:0x2a3b56, roughness:0.9 }),
+  hairA:     new THREE.MeshStandardMaterial({ color:0x2b1d12, roughness:0.95 }),
+  hairB:     new THREE.MeshStandardMaterial({ color:0x6b3d1f, roughness:0.95 }),
+  hairC:     new THREE.MeshStandardMaterial({ color:0x1a1a1a, roughness:0.95 }),
+  shaft:     new THREE.MeshBasicMaterial({ color:0x140f0b, transparent:true, opacity:0.85 }),
+  grid:      new THREE.LineBasicMaterial({ color:0x6db8c8, transparent:true, opacity:0.13 }),
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function box(w,h,d,x,y,z,mat,parent=scene){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true;
+  parent.add(m); return m;
+}
+function cyl(rt,rb,h,x,y,z,mat,parent=scene,radial=22,open=false){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,radial,1,open), mat);
+  m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true;
+  parent.add(m); return m;
+}
+function tubeSeg(a,b,r,mat,parent=scene){
+  const dir = new THREE.Vector3().subVectors(b,a); const len = dir.length();
+  if(len < 1e-5) return null;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,8), mat);
+  m.position.copy(a).addScaledVector(dir,0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  m.castShadow = true; parent.add(m); return m;
+}
+
+/* ============================================================
+   WORLD CONSTANTS
+   ============================================================ */
+const HOUSE = { cx:-4, cz:0, w:5, d:4, baseY:0.26 };
+const hx = HOUSE.cx, hz = HOUSE.cz, hw = HOUSE.w, hd = HOUSE.d;
+const bY = HOUSE.baseY;
+const floor2Y = 3.05;
+const wallTop = 4.95;
+
+const SENSOR = { x:1.5, y:-2.35, z:2.6, r:0.44, h:1.05 };
+const SOURCE = { x:8.6, y:-2.65, z:2.1 };
+const BUZZER = { x:-3.2, y:2.55, z:-1.82 };
+const SAFE   = { x:-10.6, z:1.5 };
+const CUT_Z  = 2.5;
+
+/* ============================================================
+   GROUND + SOIL CUTAWAY
+   ============================================================ */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(70,46), M.ground);
+ground.rotation.x = -Math.PI/2;
+ground.position.set(-1, 0.005, -1);
+ground.receiveShadow = true;
+scene.add(ground);
+
+// grass patch around the house
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(24,16), M.grass);
+grass.rotation.x = -Math.PI/2;
+grass.position.set(hx, 0.012, hz);
+grass.receiveShadow = true;
+scene.add(grass);
+
+const gGrid = new THREE.GridHelper(60, 60, 0x1c5a72, 0x134156);
+gGrid.position.set(-1, 0.02, -1);
+gGrid.material.transparent = true; gGrid.material.opacity = 0.14;
+scene.add(gGrid);
+
+const soilW = 26, soilDepth = 7.4, soilFrontZ = CUT_Z;
+const soilCenterZ = soilFrontZ - soilDepth/2;
+box(soilW, 1.9, soilDepth, -1, -0.95, soilCenterZ, M.soilTop);
+box(soilW, 1.3, soilDepth, -1, -2.55, soilCenterZ, M.soilMid);
+box(soilW, 0.6, soilDepth, -1, -3.50, soilCenterZ, M.soilRock);
+
+// cut-face grid
+(function(){
+  const pts = [];
+  const x0 = -14, x1 = 12, y0 = -3.8, y1 = 0;
+  for(let x = x0; x <= x1; x += 1) pts.push(x, y0, soilFrontZ + 0.008, x, y1, soilFrontZ + 0.008);
+  for(let y = y0; y <= y1; y += 0.5) pts.push(x0, y, soilFrontZ + 0.008, x1, y, soilFrontZ + 0.008);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.LineSegments(g, M.grid));
+})();
+box(soilW, 0.03, 0.03, -1, 0.0, soilFrontZ,
+  new THREE.MeshBasicMaterial({ color:0x5fe0ff, transparent:true, opacity:0.35 }));
+
+/* ============================================================
+   HOUSE  (much more detailed)
+   ============================================================ */
+const house = new THREE.Group();
+house.name = 'IntactBuilding';
+scene.add(house);
+
+/* ---- foundation + slabs ---- */
+box(hw+0.7, 0.5, hd+0.7, hx, bY-0.27, hz, M.concreteD, house);
+box(hw+0.2, 0.16, hd+0.2, hx, bY-0.06, hz, M.concrete, house);
+box(hw+0.2, 0.18, hd+0.2, hx, floor2Y, hz, M.concrete, house);
+
+/* ---- walls ---- */
+const wallT = 0.18;
+// BACK wall (full)
+box(hw, floor2Y-bY, wallT, hx, bY+(floor2Y-bY)/2, hz-hd/2, M.wallIn, house);
+box(hw, wallTop-floor2Y, wallT, hx, floor2Y+(wallTop-floor2Y)/2, hz-hd/2, M.wallWarm, house);
+// LEFT wall
+box(wallT, wallTop-bY, hd, hx-hw/2, bY+(wallTop-bY)/2, hz, M.wallOut, house);
+// RIGHT wall
+box(wallT, wallTop-bY, hd, hx+hw/2, bY+(wallTop-bY)/2, hz, M.wallOut, house);
+// FRONT wall — second floor only
+box(hw, wallTop-floor2Y, wallT, hx, floor2Y+(wallTop-floor2Y)/2, hz+hd/2, M.wallWarm, house);
+
+/* ---- ground-floor front wall with real door opening ---- */
+// Wall from x = -3.5 to x = -1.5 (i.e. from hx+0.5 to hx+hw/2)
+const frontWallCenterX = -2.5, frontWallW = 2.0;
+const doorW = 0.9, doorH = 2.15;
+const doorCenterX = -2.2, doorLeftX = doorCenterX - doorW/2, doorRightX = doorCenterX + doorW/2;
+// left panel
+box(doorLeftX - (-3.5), floor2Y-bY, wallT,
+    (-3.5 + doorLeftX)/2, bY+(floor2Y-bY)/2, hz+hd/2, M.wallWarm, house);
+// right panel
+box((-1.5) - doorRightX, floor2Y-bY, wallT,
+    (doorRightX + (-1.5))/2, bY+(floor2Y-bY)/2, hz+hd/2, M.wallWarm, house);
+// above door
+box(doorW, floor2Y - (bY + doorH), wallT,
+    doorCenterX, (bY + doorH + floor2Y)/2, hz+hd/2, M.wallWarm, house);
+
+/* ---- cut-edge frame highlighting the cutaway ---- */
+const cutMat = new THREE.MeshStandardMaterial({ color:0x5fe0ff, emissive:0x1d6d8a, emissiveIntensity:0.9, roughness:0.4 });
+box(0.06, floor2Y-bY, 0.06, hx-hw/2, bY+(floor2Y-bY)/2, hz+hd/2, cutMat, house);
+box(hw, 0.06, 0.06, hx, floor2Y-0.03, hz+hd/2, cutMat, house);
+
+/* ============================================================
+   DOOR — hinged, animated
+   ============================================================ */
+const doorPivot = new THREE.Group();
+doorPivot.position.set(doorLeftX, bY, hz+hd/2);
+house.add(doorPivot);
+
+const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.06), M.door);
+doorMesh.position.set(doorW/2, doorH/2, 0);
+doorMesh.castShadow = true; doorMesh.receiveShadow = true;
+doorPivot.add(doorMesh);
+
+// door panels (decorative recessed rectangles)
+for(let r = 0; r < 2; r++){
+  for(let c = 0; c < 2; c++){
+    const p = new THREE.Mesh(
+      new THREE.BoxGeometry(doorW*0.32, doorH*0.28, 0.02),
+      M.doorPanel
+    );
+    p.position.set(
+      doorW/2 + (c === 0 ? -doorW*0.22 : doorW*0.22),
+      doorH/2 + (r === 0 ? doorH*0.22 : -doorH*0.20),
+      0.04
+    );
+    doorMesh.add(p);
+  }
+}
+
+// door knob
+const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), M.metal);
+knob.position.set(doorW - 0.12, doorH/2, 0.06);
+doorMesh.add(knob);
+
+/* ============================================================
+   ROOF — gabled with overhang, ridge, chimney
+   ============================================================ */
+(function buildRoof(){
+  const overhang = 0.45;
+  const halfSpan = hw/2 + overhang;
+  const rise = 1.5;
+  const slant = Math.sqrt(halfSpan*halfSpan + rise*rise);
+  const pitch = Math.atan2(rise, halfSpan);
+  const roofLen = hd + overhang*2;
+  const roofThick = 0.16;
+
+  // right slope
+  const rightSlope = new THREE.Mesh(new THREE.BoxGeometry(slant, roofThick, roofLen), M.roof);
+  rightSlope.position.set(hx + halfSpan/2, wallTop + rise/2, hz);
+  rightSlope.rotation.z = -pitch;
+  rightSlope.castShadow = true; rightSlope.receiveShadow = true;
+  house.add(rightSlope);
+
+  // left slope
+  const leftSlope = new THREE.Mesh(new THREE.BoxGeometry(slant, roofThick, roofLen), M.roof);
+  leftSlope.position.set(hx - halfSpan/2, wallTop + rise/2, hz);
+  leftSlope.rotation.z = pitch;
+  leftSlope.castShadow = true; leftSlope.receiveShadow = true;
+  house.add(leftSlope);
+
+  // gable triangles
+  const shape = new THREE.Shape();
+  shape.moveTo(-halfSpan, 0);
+  shape.lineTo(halfSpan, 0);
+  shape.lineTo(0, rise);
+  shape.closePath();
+  const gGeo = new THREE.ShapeGeometry(shape);
+
+  const frontGable = new THREE.Mesh(gGeo, M.wallWarm);
+  frontGable.position.set(hx, wallTop, hz + hd/2 + 0.02);
+  frontGable.castShadow = true; frontGable.receiveShadow = true;
+  house.add(frontGable);
+
+  const backGable = new THREE.Mesh(gGeo, M.wallWarm);
+  backGable.position.set(hx, wallTop, hz - hd/2 - 0.02);
+  backGable.rotation.y = Math.PI;
+  backGable.castShadow = true; backGable.receiveShadow = true;
+  house.add(backGable);
+
+  // ridge cap
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, roofLen + 0.12), M.roofTrim);
+  ridge.position.set(hx, wallTop + rise + 0.03, hz);
+  ridge.castShadow = true; house.add(ridge);
+
+  // fascia trim
+  const fascia1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, roofLen + 0.2), M.trim);
+  fascia1.position.set(hx - halfSpan - 0.02, wallTop - 0.02, hz);
+  fascia1.castShadow = true; house.add(fascia1);
+  const fascia2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, roofLen + 0.2), M.trim);
+  fascia2.position.set(hx + halfSpan + 0.02, wallTop - 0.02, hz);
+  fascia2.castShadow = true; house.add(fascia2);
+
+  // chimney (back-right, tucked away)
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.0, 0.6), M.wallWarm);
+  chimney.position.set(hx + 1.7, 4.6, hz - 1.4);
+  chimney.castShadow = true; chimney.receiveShadow = true;
+  house.add(chimney);
+  const chimneyCap = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.12, 0.75), M.roofTrim);
+  chimneyCap.position.set(hx + 1.7, 6.66, hz - 1.4);
+  chimneyCap.castShadow = true; house.add(chimneyCap);
+})();
+
+/* ============================================================
+   WINDOWS + SHUTTERS + PORCH + STEP
+   ============================================================ */
+function makeWindow(parent, px, py, pz, w, h, rotY=0){
+  const g = new THREE.Group();
+  g.position.set(px, py, pz);
+  g.rotation.y = rotY;
+  parent.add(g);
+
+  // glass
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(w-0.08, h-0.08, 0.04), M.glass);
+  glass.position.z = 0.005; g.add(glass);
+
+  // frame
+  const fT = 0.07, fD = 0.1;
+  box(fT, h, fD, -w/2 + fT/2, 0, 0, M.trim, g);
+  box(fT, h, fD,  w/2 - fT/2, 0, 0, M.trim, g);
+  box(w - 2*fT, fT, fD, 0, h/2 - fT/2, 0, M.trim, g);
+  box(w - 2*fT, fT, fD, 0, -h/2 + fT/2, 0, M.trim, g);
+  // mullions
+  box(0.035, h - 0.08, 0.09, 0, 0, 0, M.trim, g);
+  box(w - 0.08, 0.035, 0.09, 0, 0, 0, M.trim, g);
+
+  // shutters
+  const sw = 0.26;
+  const sh = h + 0.08;
+  const leftShut = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, 0.05), M.shutter);
+  leftShut.position.set(-w/2 - sw/2 - 0.02, 0, 0.05);
+  leftShut.castShadow = true;
+  g.add(leftShut);
+  const rightShut = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, 0.05), M.shutter);
+  rightShut.position.set(w/2 + sw/2 + 0.02, 0, 0.05);
+  rightShut.castShadow = true;
+  g.add(rightShut);
+
+  // window sill
+  box(w + 2*sw + 0.15, 0.08, 0.16, 0, -h/2 - 0.06, 0.04, M.trim, g);
+}
+
+// second-floor front windows
+makeWindow(house, hx-1.35, floor2Y+0.95, hz+hd/2+0.02, 1.05, 0.98);
+makeWindow(house, hx+ 0.55, floor2Y+0.95, hz+hd/2+0.02, 1.05, 0.98);
+// second-floor left side
+makeWindow(house, hx-hw/2-0.02, floor2Y+0.95, hz+0.7, 1.0, 0.95, Math.PI/2);
+// ground-floor side window (left side, near the back)
+makeWindow(house, hx-hw/2-0.02, bY+1.55, hz-0.9, 0.95, 1.0, Math.PI/2);
+
+// porch over door
+const porchW = 1.9, porchD = 1.0;
+const porchTop = new THREE.Mesh(new THREE.BoxGeometry(porchW, 0.1, porchD), M.roof);
+porchTop.position.set(doorCenterX, bY + doorH + 0.28, hz + hd/2 + porchD/2 - 0.05);
+porchTop.castShadow = true; porchTop.receiveShadow = true;
+house.add(porchTop);
+
+// porch brackets
+const bL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), M.trim);
+bL.position.set(doorCenterX - porchW/2 + 0.08, bY + doorH + 0.0, hz + hd/2 + 0.25);
+house.add(bL);
+const bR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), M.trim);
+bR.position.set(doorCenterX + porchW/2 - 0.08, bY + doorH + 0.0, hz + hd/2 + 0.25);
+house.add(bR);
+
+// front step
+const step = new THREE.Mesh(new THREE.BoxGeometry(porchW - 0.2, 0.1, 0.4), M.concrete);
+step.position.set(doorCenterX, 0.15, hz + hd/2 + 0.2);
+step.castShadow = true; step.receiveShadow = true;
+house.add(step);
+
+// door number plate
+const plate = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.02), M.metalDark);
+plate.position.set(doorCenterX, bY + doorH + 0.35, hz + hd/2 + 0.06);
+house.add(plate);
+
+/* ============================================================
+   INTERIOR FURNITURE  (ground floor room)
+   ============================================================ */
+// partition (adds depth on the back-left)
+box(0.12, floor2Y-bY-0.1, 1.5, hx+0.9, bY+(floor2Y-bY)/2, hz-1.15, M.wallIn, house);
+
+// table + chairs
+const tableTop = box(1.5, 0.09, 0.85, hx-1.4, bY+0.72, hz+0.35, M.wood, house);
+for(const dx of [-0.62,0.62]) for(const dz of [-0.32,0.32])
+  cyl(0.035,0.035,0.68, hx-1.4+dx, bY+0.36, hz+0.35+dz, M.metalDark, house, 8);
+
+// sofa
+box(1.5, 0.32, 0.6, hx+1.2, bY+0.28, hz+0.6, M.fabricA, house);
+box(1.5, 0.55, 0.14, hx+1.2, bY+0.65, hz+0.32, M.fabricA, house);
+// cushions
+box(0.68, 0.12, 0.5, hx+0.9, bY+0.48, hz+0.58, M.fabricB, house);
+box(0.68, 0.12, 0.5, hx+1.5, bY+0.48, hz+0.58, M.fabricB, house);
+
+// side cabinet
+box(0.75, 0.5, 0.42, hx-2.0, bY+0.4, hz-1.35, M.wood, house);
+box(0.75, 0.05, 0.42, hx-2.0, bY+0.68, hz-1.35, M.wallWarm, house);
+
+// rug
+const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshStandardMaterial({ color:0x7a3f38, roughness:0.95 }));
+rug.rotation.x = -Math.PI/2;
+rug.position.set(hx-0.6, bY+0.001, hz+0.35);
+house.add(rug);
+
+/* ============================================================
+   INDOOR BUZZER
+   ============================================================ */
+const buzzerGrp = new THREE.Group();
+buzzerGrp.position.set(BUZZER.x, BUZZER.y, BUZZER.z);
+house.add(buzzerGrp);
+
+box(0.52, 0.38, 0.13, 0, 0, 0, M.metalDark, buzzerGrp);
+const buzzerLens = new THREE.Mesh(new THREE.SphereGeometry(0.115, 18, 14), M.redLens.clone());
+buzzerLens.position.set(0, 0.02, 0.09);
+buzzerGrp.add(buzzerLens);
+
+const buzzerHalo = new THREE.Mesh(
+  new THREE.TorusGeometry(0.34, 0.022, 8, 40),
+  new THREE.MeshBasicMaterial({ color:0xff5666, transparent:true, opacity:0 })
+);
+buzzerHalo.position.set(0, 0.02, 0.14);
+buzzerGrp.add(buzzerHalo);
+
+const soundRings = [];
+for(let i=0;i<3;i++){
+  const r = new THREE.Mesh(
+    new THREE.TorusGeometry(0.3, 0.016, 6, 44),
+    new THREE.MeshBasicMaterial({ color:0xff8080, transparent:true, opacity:0 })
+  );
+  r.position.set(0, 0.02, 0.17 + i*0.008);
+  buzzerGrp.add(r);
+  soundRings.push(r);
+}
+
+/* ============================================================
+   PEOPLE
+   ============================================================ */
+function makePerson(shirtHex, hairHex){
+  const g = new THREE.Group();
+  const shirt = new THREE.MeshStandardMaterial({ color:shirtHex, roughness:0.88 });
+  const hair  = new THREE.MeshStandardMaterial({ color:hairHex, roughness:0.95 });
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), M.skin);
+  head.position.y = 1.50; head.castShadow = true; g.add(head);
+
+  const hairMesh = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 12, 0, Math.PI*2, 0, Math.PI*0.55), hair);
+  hairMesh.position.y = 1.52; g.add(hairMesh);
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.42, 4, 10), shirt);
+  torso.position.y = 1.07; torso.castShadow = true; g.add(torso);
+
+  for(const s of [-1, 1]){
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.058, 0.38, 4, 8), shirt);
+    arm.position.set(s*0.235, 1.02, 0);
+    arm.rotation.z = s*0.13;
+    arm.castShadow = true; g.add(arm);
+
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.42, 4, 8), M.pants);
+    leg.position.set(s*0.095, 0.36, 0);
+    leg.castShadow = true; g.add(leg);
+  }
+  return g;
+}
+
+/* ---- EVACUATION PATHS — everyone exits through the front door ---- */
+// doorCenterX = -2.2, doorCenterZ = hz + hd/2 = 2.0
+const DOOR_IN  = new THREE.Vector3(doorCenterX, bY,    1.75);
+const DOOR_OUT = new THREE.Vector3(doorCenterX, 0.03,  2.35);
+
+const PEOPLE_PATHS = [
+  // Person A — starts front-left inside
+  [
+    new THREE.Vector3(hx-1.5, bY,    hz+0.3),
+    new THREE.Vector3(hx-3.0, bY,    hz+1.0),
+    new THREE.Vector3(hx-2.6, bY,    hz+1.5),
+    DOOR_IN.clone(),
+    DOOR_OUT.clone(),
+    new THREE.Vector3(doorCenterX-0.6, 0.03, 3.0),
+    new THREE.Vector3(-5.0,   0.03, 3.4),
+    new THREE.Vector3(-8.0,   0.03, 3.2),
+    new THREE.Vector3(-9.6,   0.03, 2.2),
+    new THREE.Vector3(SAFE.x+0.55, 0.03, SAFE.z+0.4),
+  ],
+  // Person B — starts near the table
+  [
+    new THREE.Vector3(hx-0.4, bY,    hz-0.5),
+    new THREE.Vector3(hx-0.5, bY,    hz+0.8),
+    new THREE.Vector3(hx-1.6, bY,    hz+1.5),
+    DOOR_IN.clone(),
+    DOOR_OUT.clone(),
+    new THREE.Vector3(doorCenterX-0.5, 0.03, 3.1),
+    new THREE.Vector3(-5.5,   0.03, 3.6),
+    new THREE.Vector3(-8.4,   0.03, 3.4),
+    new THREE.Vector3(-9.8,   0.03, 2.4),
+    new THREE.Vector3(SAFE.x-0.55, 0.03, SAFE.z+0.15),
+  ],
+  // Person C — starts on the sofa side (right)
+  [
+    new THREE.Vector3(hx+0.9, bY,    hz+0.9),
+    new THREE.Vector3(hx+0.4, bY,    hz+1.5),
+    new THREE.Vector3(hx-1.0, bY,    hz+1.7),
+    DOOR_IN.clone(),
+    DOOR_OUT.clone(),
+    new THREE.Vector3(doorCenterX-0.4, 0.03, 3.2),
+    new THREE.Vector3(-5.8,   0.03, 3.5),
+    new THREE.Vector3(-8.6,   0.03, 3.0),
+    new THREE.Vector3(-9.9,   0.03, 2.0),
+    new THREE.Vector3(SAFE.x+0.15, 0.03, SAFE.z-0.55),
+  ],
+];
+
+const people = [];
+const shirtColors = [0xf2a45a, 0x53b9dd, 0x9ad36c];
+const hairColors  = [0x2b1d12, 0x6b3d1f, 0x1a1a1a];
+PEOPLE_PATHS.forEach((path, i) => {
+  const p = makePerson(shirtColors[i], hairColors[i]);
+  p.position.copy(path[0]);
+  scene.add(p);
+  people.push({ mesh:p, path, delay:i*0.14 });
+});
+
+function samplePath(path, u){
+  const n = path.length - 1;
+  const t = Math.max(0, Math.min(1, u)) * n;
+  const i = Math.min(n-1, Math.floor(t));
+  const f = t - i;
+  return path[i].clone().lerp(path[i+1], f);
+}
+
+/* ============================================================
+   SAFE ZONE
+   ============================================================ */
+box(3.4, 0.06, 3.2, SAFE.x, 0.04, SAFE.z, M.teal);
+const safeRing = new THREE.Mesh(
+  new THREE.TorusGeometry(1.45, 0.035, 8, 64),
+  new THREE.MeshBasicMaterial({ color:0x2be0bd, transparent:true, opacity:0.75 })
+);
+safeRing.rotation.x = -Math.PI/2;
+safeRing.position.set(SAFE.x, 0.09, SAFE.z);
+scene.add(safeRing);
+
+/* ============================================================
+   UNDERGROUND SENSOR — EMPTY SILVER HOUSING
+   ============================================================ */
+const shaft = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 3.2), M.shaft);
+shaft.position.set(SENSOR.x, -1.65, CUT_Z + 0.012);
+scene.add(shaft);
+box(0.035, 3.2, 0.02, SENSOR.x-0.525, -1.65, CUT_Z+0.02,
+  new THREE.MeshBasicMaterial({color:0x8fd8ee, transparent:true, opacity:0.5}));
+box(0.035, 3.2, 0.02, SENSOR.x+0.525, -1.65, CUT_Z+0.02,
+  new THREE.MeshBasicMaterial({color:0x8fd8ee, transparent:true, opacity:0.5}));
+
+const sensorGrp = new THREE.Group();
+sensorGrp.position.set(SENSOR.x, SENSOR.y, SENSOR.z);
+scene.add(sensorGrp);
+
+const canWall = new THREE.Mesh(
+  new THREE.CylinderGeometry(SENSOR.r, SENSOR.r, SENSOR.h, 36, 1, true),
+  new THREE.MeshStandardMaterial({ color:0xc8d0d8, metalness:0.94, roughness:0.2, side:THREE.DoubleSide })
+);
+canWall.castShadow = true; canWall.receiveShadow = true;
+sensorGrp.add(canWall);
+
+const canBottom = new THREE.Mesh(
+  new THREE.CircleGeometry(SENSOR.r-0.005, 36),
+  new THREE.MeshStandardMaterial({ color:0x8e969e, metalness:0.9, roughness:0.35, side:THREE.DoubleSide })
+);
+canBottom.rotation.x = -Math.PI/2;
+canBottom.position.y = -SENSOR.h/2;
+sensorGrp.add(canBottom);
+
+const canRim = new THREE.Mesh(
+  new THREE.TorusGeometry(SENSOR.r, 0.05, 10, 44),
+  new THREE.MeshStandardMaterial({ color:0xdfe6ec, metalness:0.96, roughness:0.14 })
+);
+canRim.rotation.x = Math.PI/2;
+canRim.position.y = SENSOR.h/2;
+sensorGrp.add(canRim);
+
+const canBottomRim = new THREE.Mesh(
+  new THREE.TorusGeometry(SENSOR.r, 0.03, 8, 44),
+  new THREE.MeshStandardMaterial({ color:0xa8b0b8, metalness:0.9, roughness:0.3 })
+);
+canBottomRim.rotation.x = Math.PI/2;
+canBottomRim.position.y = -SENSOR.h/2;
+sensorGrp.add(canBottomRim);
+
+const indicatorMat = new THREE.MeshStandardMaterial({ color:0x1a2833, emissive:0x000000, roughness:0.3 });
+const indicator = new THREE.Mesh(new THREE.SphereGeometry(0.085, 16, 12), indicatorMat);
+indicator.position.set(0, 0.34, SENSOR.r + 0.02);
+sensorGrp.add(indicator);
+
+const indicatorLight = new THREE.PointLight(0xff3b4b, 0, 2.6);
+indicatorLight.position.set(SENSOR.x, SENSOR.y + 0.34, SENSOR.z + SENSOR.r + 0.05);
+scene.add(indicatorLight);
+
+/* ============================================================
+   PROTECTED WIRING
+   ============================================================ */
+const wireCenterPath = [
+  new THREE.Vector3(SENSOR.x, SENSOR.y - 0.42, SENSOR.z),
+  new THREE.Vector3(-1.30,   SENSOR.y - 0.42, SENSOR.z),
+  new THREE.Vector3(-1.30,   0.16,            SENSOR.z),
+  new THREE.Vector3(-2.20,   0.30,            2.35),
+  new THREE.Vector3(-2.20,   0.30,            1.30),
+  new THREE.Vector3(-3.20,   0.30,            1.30),
+  new THREE.Vector3(-3.20,   0.30,           -1.72),
+  new THREE.Vector3(-3.20,   BUZZER.y - 0.10, -1.80),
+];
+
+function buildParallelWire(centerPath, offset, mat, radius){
+  const grp = new THREE.Group();
+  const offPath = centerPath.map((p, i) => {
+    const prev = centerPath[Math.max(0, i-1)];
+    const next = centerPath[Math.min(centerPath.length-1, i+1)];
+    const dir = new THREE.Vector3().subVectors(next, prev).normalize();
+    let perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,0,1));
+    if(perp.lengthSq() < 0.02) perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0));
+    if(perp.lengthSq() < 0.02) perp.set(1,0,0);
+    perp.normalize();
+    return p.clone().addScaledVector(perp, offset);
+  });
+  for(let i=0;i<offPath.length-1;i++) tubeSeg(offPath[i], offPath[i+1], radius, mat, grp);
+  return grp;
+}
+
+const wireRedGrp  = buildParallelWire(wireCenterPath,  0.075, M.wireRed,  0.052);
+const wireBlueGrp = buildParallelWire(wireCenterPath, -0.075, M.wireBlue, 0.052);
+scene.add(wireRedGrp, wireBlueGrp);
+
+tubeSeg(new THREE.Vector3(SENSOR.x-0.30, SENSOR.y-0.30, SENSOR.z+0.16),
+        wireCenterPath[0].clone().add(new THREE.Vector3(0,0.02,0.075)), 0.04, M.wireRed);
+tubeSeg(new THREE.Vector3(SENSOR.x-0.30, SENSOR.y-0.46, SENSOR.z+0.16),
+        wireCenterPath[0].clone().add(new THREE.Vector3(0,0.02,-0.075)), 0.04, M.wireBlue);
+
+const pulseMat = new THREE.MeshStandardMaterial({ color:0xaff6ff, emissive:0x2fd8ff, emissiveIntensity:2.4, roughness:0.2 });
+const signalPulse = new THREE.Mesh(new THREE.SphereGeometry(0.115, 16, 12), pulseMat);
+signalPulse.visible = false;
+scene.add(signalPulse);
+const signalCurve = new THREE.CatmullRomCurve3(wireCenterPath);
+
+/* ============================================================
+   EARTHQUAKE SOURCE + WAVE RINGS
+   ============================================================ */
+const sourceGrp = new THREE.Group();
+sourceGrp.position.set(SOURCE.x, SOURCE.y, SOURCE.z);
+scene.add(sourceGrp);
+
+const sourceCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.26, 20, 16),
+  new THREE.MeshStandardMaterial({ color:0xff3b49, emissive:0x8a0a14, emissiveIntensity:0.9, roughness:0.4 })
+);
+sourceGrp.add(sourceCore);
+
+const sourceInner = new THREE.Mesh(
+  new THREE.SphereGeometry(0.11, 16, 12),
+  new THREE.MeshBasicMaterial({ color:0xffd6c8 })
+);
+sourceInner.position.z = 0.12;
+sourceGrp.add(sourceInner);
+
+const sourceLight = new THREE.PointLight(0xff3b49, 0, 12);
+sourceLight.position.copy(sourceGrp.position);
+scene.add(sourceLight);
+
+const pRings = [];
+for(let i=0;i<5;i++){
+  const r = new THREE.Mesh(
+    new THREE.TorusGeometry(1, 0.05, 8, 72),
+    new THREE.MeshBasicMaterial({ color:0xff4b52, transparent:true, opacity:0 })
+  );
+  r.position.set(SOURCE.x, SOURCE.y, SOURCE.z + 0.03 + i*0.006);
+  scene.add(r); pRings.push(r);
+}
+const sRings = [];
+for(let i=0;i<4;i++){
+  const r = new THREE.Mesh(
+    new THREE.TorusGeometry(1, 0.06, 8, 72),
+    new THREE.MeshBasicMaterial({ color:0xff9a3c, transparent:true, opacity:0 })
+  );
+  r.position.set(SOURCE.x, SOURCE.y, SOURCE.z + 0.05 + i*0.008);
+  scene.add(r); sRings.push(r);
+}
+
+/* ============================================================
+   COLLAPSED BUILDING (prebuilt)
+   ============================================================ */
+const rubble = new THREE.Group();
+rubble.name = 'CollapsedBuilding';
+rubble.visible = false;
+scene.add(rubble);
+
+const rubbleBlocks = [];
+const rnd = (a,b) => a + Math.random()*(b-a);
+for(let i=0;i<26;i++){
+  const w = rnd(0.5,1.4), h = rnd(0.16,0.55), d = rnd(0.5,1.3);
+  const mat = (i % 4 === 0) ? M.concrete : (i % 3 === 0 ? M.debrisD : M.debris);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  const px = hx + rnd(-2.4, 2.4);
+  const pz = hz + rnd(-1.8, 1.8);
+  const py = 0.16 + h/2 + rnd(0, 0.55) * (1 - Math.min(1, Math.abs(px-hx)/2.6));
+  m.position.set(px, py + 1.6, pz);
+  m.rotation.set(rnd(-0.3,0.3), rnd(0,3.14), rnd(-0.35,0.35));
+  m.castShadow = true; m.receiveShadow = true;
+  rubble.add(m);
+  rubbleBlocks.push({ mesh:m, targetY: py, targetRot:[m.rotation.x, m.rotation.y, m.rotation.z] });
+}
+const slab1 = box(2.9, 0.22, 1.35, hx-0.5, 0.95, hz+0.2, M.concrete, rubble);
+slab1.rotation.set(0.5, 0.2, -0.42);
+const slab2 = box(3.2, 0.24, 1.7, hx+0.4, 0.72, hz-0.35, M.concrete, rubble);
+slab2.rotation.set(0.2, -0.3, 0.24);
+const slab3 = box(0.26, 1.9, 1.4, hx+1.6, 0.98, hz-0.2, M.wallDark, rubble);
+slab3.rotation.set(0, 0.3, 0.55);
+
+const dustMat = new THREE.MeshBasicMaterial({ color:0xa8b8c0, transparent:true, opacity:0, depthWrite:false });
+const dustGrp = new THREE.Group();
+dustGrp.visible = false;
+scene.add(dustGrp);
+const dustPuffs = [];
+for(let i=0;i<20;i++){
+  const p = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.3,0.75), 10, 8), dustMat.clone());
+  p.position.set(hx + rnd(-3,3), rnd(0.4,1.2), hz + rnd(-2.2,2.2));
+  dustGrp.add(p);
+  dustPuffs.push({ mesh:p, baseY:p.position.y, phase: Math.random()*6.28, speed: rnd(0.25,0.55) });
+}
+
+/* ============================================================
+   LABELS + LEADER LINES
+   ============================================================ */
+const labelLayer = $('labels');
+const svgLayer = $('leaders');
+
+const labelDefs = [
+  { text:'EMPTY SILVER SENSOR HOUSING', color:'#9fe9ff',
+    anchor:()=> new THREE.Vector3(SENSOR.x, SENSOR.y + 0.15, SENSOR.z),
+    show: t => (t>1.2 && t<12.5), off:[0,-70] },
+  { text:'MODEL DEPTH: 7–10 FT', color:'#9fe9ff',
+    anchor:()=> new THREE.Vector3(SENSOR.x, SENSOR.y - 0.7, SENSOR.z),
+    show: t => (t>1.2 && t<12.5), off:[0,62] },
+  { text:'BOREHOLE', color:'#9fe9ff',
+    anchor:()=> new THREE.Vector3(SENSOR.x, -0.55, CUT_Z + 0.05),
+    show: t => (t>2.0 && t<12.5), off:[100,-30] },
+  { text:'INCOMING P-WAVE', color:'#ff9aa2',
+    anchor:()=> new THREE.Vector3(4.6, SOURCE.y, SOURCE.z + 0.1),
+    show: t => (t>2.0 && t<7.0), off:[0,-58] },
+  { text:'EARTHQUAKE SOURCE', color:'#ff9aa2',
+    anchor:()=> new THREE.Vector3(SOURCE.x, SOURCE.y + 0.05, SOURCE.z),
+    show: t => (t>2.0 && t<7.0), off:[0,58] },
+  { text:'PROTECTED SIGNAL WIRING', color:'#8fe0ff',
+    anchor:()=> new THREE.Vector3(-1.30, -1.3, SENSOR.z),
+    show: t => (t>6.2 && t<10.6), off:[-130,20] },
+  { text:'DIRECTION OF TRANSMISSION →', color:'#8fe0ff',
+    anchor:()=> new THREE.Vector3(-2.6, 0.62, 1.3),
+    show: t => (t>6.2 && t<10.6), off:[0,-64] },
+  { text:'P-WAVE DETECTED — SIGNAL SENT', color:'#8fe0ff',
+    anchor:()=> new THREE.Vector3(-1.30, 0.6, SENSOR.z),
+    show: t => (t>7.0 && t<10.6), off:[0,-110] },
+  { text:'INDOOR ALARM BUZZER', color:'#ffb0b6',
+    anchor:()=> new THREE.Vector3(BUZZER.x, BUZZER.y + 0.05, BUZZER.z),
+    show: t => (t>9.2 && t<14.5), off:[0,-70] },
+  { text:'EARTHQUAKE WARNING! EVACUATE NOW!', color:'#ffb0b6',
+    anchor:()=> new THREE.Vector3(BUZZER.x, BUZZER.y - 0.5, BUZZER.z),
+    show: t => (t>9.8 && t<14.5), off:[0,72] },
+  { text:'EXIT THROUGH FRONT DOOR', color:'#8ff5dc',
+    anchor:()=> new THREE.Vector3(doorCenterX, 1.4, hz + hd/2 + 0.1),
+    show: t => (t>10.6 && t<13.2), off:[-130,-40] },
+  { text:'EVACUATION ROUTE', color:'#8ff5dc',
+    anchor:()=> new THREE.Vector3(-6.2, 0.6, 3.0),
+    show: t => (t>12.0 && t<19.0), off:[0,-58] },
+  { text:'SAFE EVACUATION AREA', color:'#8ff5dc',
+    anchor:()=> new THREE.Vector3(SAFE.x, 1.4, SAFE.z),
+    show: t => (t>12.0 && t<32.0), off:[0,-64] },
+  { text:'S-WAVE IMPACT', color:'#ffc48a',
+    anchor:()=> new THREE.Vector3(2.5, -1.8, 2.4),
+    show: t => (t>22.0 && t<29.0), off:[0,-70] },
+  { text:'BUILDING FOUNDATION', color:'#cfe4f0',
+    anchor:()=> new THREE.Vector3(hx-2.0, 0.25, hz+2.05),
+    show: t => (t>0.5 && t<7.5), off:[-110,20] },
+  { text:'INTACT STRUCTURE', color:'#cfe4f0',
+    anchor:()=> new THREE.Vector3(hx, 5.6, hz),
+    show: t => (t>0.3 && t<7.5), off:[0,-56] },
+];
+
+const labels = labelDefs.map(def => {
+  const el = document.createElement('div');
+  el.className = 'lbl' + (def.color === '#ff9aa2' || def.color === '#ffb0b6' || def.color === '#ffc48a' ? ' warn'
+              : (def.color === '#8ff5dc' ? ' good' : ''));
+  el.textContent = def.text;
+  labelLayer.appendChild(el);
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('stroke', def.color);
+  line.setAttribute('stroke-width','1');
+  line.setAttribute('stroke-dasharray','3 3');
+  line.setAttribute('opacity','0');
+  svgLayer.appendChild(line);
+
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('r','2.8');
+  dot.setAttribute('fill', def.color);
+  dot.setAttribute('opacity','0');
+  svgLayer.appendChild(dot);
+
+  return { def, el, line, dot, active:false };
+});
+
+const _v = new THREE.Vector3();
+function updateLabels(t){
+  const w = window.innerWidth, h = window.innerHeight;
+  for(const L of labels){
+    let on = L.def.show(t);
+    if(on){
+      _v.copy(L.def.anchor()).project(camera);
+      if(_v.z > 1) on = false;
+    }
+    if(!on){
+      if(L.active){ L.el.classList.remove('on'); L.line.setAttribute('opacity','0'); L.dot.setAttribute('opacity','0'); L.active = false; }
+      continue;
+    }
+    const sx = (_v.x * 0.5 + 0.5) * w;
+    const sy = (-_v.y * 0.5 + 0.5) * h;
+    const lx = Math.max(90, Math.min(w-90, sx + L.def.off[0]));
+    const ly = Math.max(30, Math.min(h-30, sy + L.def.off[1]));
+
+    L.el.style.left = lx + 'px';
+    L.el.style.top  = ly + 'px';
+    L.el.classList.add('on');
+
+    L.line.setAttribute('x1', lx);
+    L.line.setAttribute('y1', ly);
+    L.line.setAttribute('x2', sx);
+    L.line.setAttribute('y2', sy);
+    L.line.setAttribute('opacity','0.55');
+
+    L.dot.setAttribute('cx', sx);
+    L.dot.setAttribute('cy', sy);
+    L.dot.setAttribute('opacity','0.95');
+
+    L.active = true;
+  }
+}
+
+/* ============================================================
+   CAMERA SYSTEM
+   ============================================================ */
+const cam = {
+  pos:  new THREE.Vector3(14, 9, 20),
+  look: new THREE.Vector3(-2, 1.5, 0),
+  tgtPos:  new THREE.Vector3(14, 9, 20),
+  tgtLook: new THREE.Vector3(-2, 1.5, 0),
+  smooth: 2.4,
+};
+
+const SHOTS = {
+  overview: { pos:[14.5, 9.5, 21],   look:[-2.0, 1.5, 0.5] },
+  pwave:    { pos:[9.5, -1.2, 12],   look:[5.0, -2.4, 2.6] },
+  detect:   { pos:[4.2, -1.6, 8.4],  look:[1.5, -2.35, 2.6] },
+  wire:     { pos:[-1.2, -2.6, 9.5], look:[-2.0, -1.1, 2.4] },
+  buzzer:   { pos:[-2.6, 2.55, 2.6], look:[-3.25, 2.5, -1.8] },
+  evac:     { pos:[-7.5, 3.6, 11.5], look:[-7.0, 1.3, 1.5] },
+  wide:     { pos:[11.5, 6.5, 17],   look:[-2.5, 1.6, 0] },
+  impact:   { pos:[15.5, 8.0, 20],   look:[-4.0, 2.2, 0] },
+  final:    { pos:[17.5, 9.5, 23],   look:[-3.5, 0.8, 0] },
+};
+
+let freeLook = false;
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.6;
+controls.maxDistance = 55;
+controls.maxPolarAngle = Math.PI * 0.96;
+controls.enabled = false;
+controls.enablePan = true;
+controls.screenSpacePanning = true;
+// touch gestures: 1-finger rotate, 2-finger dolly+pan
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+function setShot(name){
+  const s = SHOTS[name];
+  if(!s) return;
+  cam.tgtPos.set(s.pos[0], s.pos[1], s.pos[2]);
+  cam.tgtLook.set(s.look[0], s.look[1], s.look[2]);
+}
+
+/* ============================================================
+   TIMELINE
+   ============================================================ */
+const T = {
+  pwaveStart: 1.8,
+  detect:     6.0,
+  doorOpen:   10.0,
+  peopleGo:   11.0,
+  impact:    24.0,    // detect + 18
+  settle:    30.0,
+  finish:    36.0,
+};
+const WARNING_SECONDS = T.impact - T.detect;   // = 18
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let running = false, paused = false, simTime = 0, lastReal = performance.now();
+let collapsed = false, collapseProgress = 0, buzzerOn = false;
+let soundEnabled = false, audioCtx = null, lastBeep = -1;
+let doorOpenAmount = 0;
+let detectedToastShown = false, completeToastShown = false;
+let currentShot = '';
+let touchHintShown = false;
+
+const ui = {
+  start: $('btnStart'), pause: $('btnPause'), reset: $('btnReset'),
+  free: $('btnFree'), full: $('btnFull'), sound: $('btnSound'),
+  state: $('stState'), signal: $('stSignal'), buzzer: $('stBuzzer'), people: $('stPeople'),
+  timerNum: $('timerNum'), timerFill: $('timerFill'),
+  stageNum: $('stageNum'), stageName: $('stageName'),
+  narrTitle: $('narrTitle'), narrText: $('narrText'),
+  toast: $('toast'), toastTitle: $('toastTitle'), toastText: $('toastText'),
+  endcard: $('endcard'), touchHint: $('touchHint'),
+};
+
+const STAGES = [
+  { num:'01', name:'SYSTEM OVERVIEW', title:'SYSTEM OVERVIEW',
+    text:'The house is intact, the occupants are inside, and the silver detection housing sits empty underground — waiting for our own system to be installed.' },
+  { num:'02', name:'P-WAVE DETECTION', title:'P-WAVE DETECTION',
+    text:'The faster P-wave travels through the soil and reaches the sensor housing first. Detection starts the 18-second warning window.' },
+  { num:'03', name:'SIGNAL TRANSMISSION', title:'SIGNAL TRANSMISSION',
+    text:'A warning signal travels along the protected red and blue wiring from the sensor, into the building foundation, and up to the indoor alarm.' },
+  { num:'04', name:'INDOOR WARNING', title:'INDOOR WARNING',
+    text:'The wall-mounted buzzer activates: the red indicator flashes, sound rings spread through the room, and the occupants head for the front door.' },
+  { num:'05', name:'SAFE EVACUATION', title:'SAFE EVACUATION',
+    text:'Occupants move calmly but quickly out the front door and across the yard to the marked safe evacuation area, well away from the structure.' },
+  { num:'06', name:'S-WAVE IMPACT', title:'S-WAVE IMPACT',
+    text:'The slower, more damaging S-wave arrives after the full 18-second window. The building is shaken and then collapses — but everyone is already safe outside.' },
+  { num:'07', name:'FINAL EXPLANATION', title:'FINAL EXPLANATION',
+    text:'Detect early. Alert quickly. Evacuate safely. A warning triggered by the first-arriving P-wave can give occupants valuable seconds before the S-wave arrives.' },
+];
+
+function stageIndex(t){
+  if(t < T.pwaveStart) return 0;
+  if(t < T.detect)     return 1;
+  if(t < 9.6)          return 2;
+  if(t < 12.4)         return 3;
+  if(t < 17.6)         return 4;
+  if(t < T.settle)     return 5;
+  return 6;
+}
+
+function applyStage(i){
+  const s = STAGES[i];
+  ui.stageNum.textContent = s.num;
+  ui.stageName.textContent = s.name;
+  ui.narrTitle.textContent = s.title;
+  ui.narrText.textContent = s.text;
+}
+
+/* ============================================================
+   AUDIO
+   ============================================================ */
+function initAudio(){
+  if(audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ audioCtx = null; }
+}
+function beep(freq, dur, gain){
+  if(!soundEnabled || !audioCtx) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+function resetSim(){
+  running = false; paused = false; simTime = 0;
+  collapsed = false; collapseProgress = 0; buzzerOn = false;
+  doorOpenAmount = 0;
+  doorPivot.rotation.y = 0;
+  lastReal = performance.now();
+  lastBeep = -1;
+
+  house.visible = true;
+  house.position.set(0,0,0);
+  house.rotation.set(0,0,0);
+  rubble.visible = false;
+  rubbleBlocks.forEach(b => {
+    b.mesh.position.y = b.targetY + 1.6;
+    b.mesh.rotation.set(b.targetRot[0], b.targetRot[1], b.targetRot[2]);
+  });
+  dustGrp.visible = false;
+  dustPuffs.forEach(d => { d.mesh.material.opacity = 0; d.mesh.scale.setScalar(1); d.mesh.position.y = d.baseY; });
+
+  people.forEach(p => { p.mesh.position.copy(p.path[0]); p.mesh.rotation.y = 0; });
+
+  indicatorMat.color.setHex(0x1a2833);
+  indicatorMat.emissive.setHex(0x000000);
+  indicatorLight.intensity = 0;
+
+  buzzerHalo.material.opacity = 0;
+  soundRings.forEach(r => { r.material.opacity = 0; r.scale.setScalar(1); });
+
+  pRings.forEach(r => { r.visible = false; r.material.opacity = 0; r.scale.setScalar(1); });
+  sRings.forEach(r => { r.visible = false; r.material.opacity = 0; r.scale.setScalar(1); });
+  sourceLight.intensity = 0;
+  sourceCore.material.color.setHex(0xff3b49);
+  sourceCore.material.emissive.setHex(0x8a0a14);
+
+  signalPulse.visible = false;
+
+  ui.start.disabled = false;
+  ui.pause.disabled = true;
+  ui.pause.textContent = '❚❚ PAUSE';
+  ui.state.textContent = 'IDLE';
+  ui.signal.textContent = 'STANDBY';
+  ui.buzzer.textContent = 'OFF';
+  ui.people.textContent = 'INSIDE';
+  ui.timerNum.textContent = '18.0 s';
+  ui.timerFill.style.width = '100%';
+  ui.endcard.classList.remove('show');
+  ui.toast.classList.remove('show');
+  applyStage(0);
+
+  setShot('overview');
+  cam.pos.copy(cam.tgtPos);
+  cam.look.copy(cam.tgtLook);
+  camera.position.copy(cam.pos);
+  camera.lookAt(cam.look);
+  controls.target.copy(cam.look);
+  controls.enabled = false;
+  freeLook = false;
+  ui.free.classList.remove('active');
+}
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  let dt = (now - lastReal) / 1000;
+  lastReal = now;
+  dt = Math.min(dt, 0.05);
+
+  if(running && !paused) simTime += dt;
+  const t = simTime;
+
+  applyStage(stageIndex(t));
+
+  /* subtle ground rumble at start */
+  if(running && t < 4 && !freeLook){
+    const a = Math.max(0, 1 - t/4) * 0.012;
+    house.position.x = Math.sin(now*0.05) * a;
+  }
+
+  /* P-wave rings */
+  if(running){
+    pRings.forEach((r, i) => {
+      const local = t - T.pwaveStart - i*0.30;
+      if(local > 0 && local < 4.2){
+        r.visible = true;
+        const rr = 0.15 + local * 2.05;
+        r.scale.set(rr, rr, rr);
+        r.material.opacity = Math.max(0, 0.75 - local * 0.17);
+      } else { r.visible = false; r.material.opacity = 0; }
+    });
+  }
+
+  /* source glow */
+  if(running && t > T.pwaveStart - 0.4 && t < T.settle){
+    sourceLight.intensity = 3.0 + Math.sin(now*0.012) * 1.4;
+  } else sourceLight.intensity = 0;
+  sourceCore.scale.setScalar(1 + 0.07 * Math.sin(now * 0.005));
+  sourceInner.scale.setScalar(1 + 0.14 * Math.sin(now * 0.008));
+
+  /* detection */
+  if(running && t >= T.detect){
+    indicatorMat.color.setHex(0xff3b4b);
+    indicatorMat.emissive.setHex(0xff1024);
+    indicatorMat.emissiveIntensity = 1.6;
+    indicatorLight.intensity = 2.4 + Math.sin(now*0.02) * 0.8;
+    ui.signal.textContent = t < 8.0 ? 'DETECTED' : (t < T.impact ? 'SENT' : 'COMPLETE');
+  }
+
+  /* signal pulse */
+  const pulseStart = T.detect + 0.35;
+  const pulseDur = 3.0;
+  if(running && t >= pulseStart && t <= pulseStart + pulseDur){
+    signalPulse.visible = true;
+    const u = (t - pulseStart) / pulseDur;
+    signalPulse.position.copy(signalCurve.getPointAt(Math.min(1, u)));
+  } else signalPulse.visible = false;
+
+  /* door opens when alarm starts */
+  const doorTarget = (running && t >= T.doorOpen) ? Math.PI/2 * 0.92 : 0;
+  doorOpenAmount += (doorTarget - doorOpenAmount) * Math.min(1, dt * 3.2);
+  doorPivot.rotation.y = doorOpenAmount;
+
+  /* buzzer */
+  const alarmStart = T.detect + 4.0;      // t = 10
+  const alarmEnd   = T.settle;
+  const alarmActive = running && t >= alarmStart && t < alarmEnd;
+  buzzerOn = alarmActive;
+
+  if(alarmActive){
+    ui.buzzer.textContent = (Math.floor(t*3) % 2 === 0) ? 'ALARM ON' : 'FLASHING';
+    const pulse = (Math.sin(t*11) * 0.5 + 0.5);
+    buzzerHalo.material.opacity = 0.3 + pulse * 0.55;
+    buzzerLens.material.emissiveIntensity = 0.7 + pulse * 1.4;
+
+    soundRings.forEach((r, i) => {
+      const ph = (t*1.6 - i*0.33) % 1;
+      const sc = 1 + ph * 3.2;
+      r.scale.setScalar(sc);
+      r.material.opacity = Math.max(0, 0.55 * (1 - ph));
+    });
+
+    if(soundEnabled && t - lastBeep > 0.45){ lastBeep = t; beep(880, 0.16, 0.05); }
+  } else {
+    buzzerHalo.material.opacity = 0;
+    soundRings.forEach(r => { r.material.opacity = 0; r.scale.setScalar(1); });
+    if(running && t >= alarmEnd) ui.buzzer.textContent = 'SILENT';
+  }
+
+  /* evacuation */
+  const evacStart = T.peopleGo;
+  const evacDur   = 6.0;
+  if(running && t >= evacStart){
+    const base = Math.min(1, (t - evacStart) / evacDur);
+    people.forEach((p, i) => {
+      const u = Math.max(0, Math.min(1, (base - p.delay) / (1 - p.delay + 1e-4)));
+      const e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2;
+      const pos = samplePath(p.path, e);
+      p.mesh.position.copy(pos);
+      const ahead = samplePath(p.path, Math.min(1, e + 0.02));
+      const dir = new THREE.Vector3().subVectors(ahead, pos);
+      if(dir.lengthSq() > 0.0001) p.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+      // walk bob
+      if(u < 1) p.mesh.position.y += Math.abs(Math.sin(t*7 + i)) * 0.03;
+    });
+    ui.people.textContent = base >= 1 ? 'SAFE OUTSIDE' : 'EVACUATING';
+  }
+
+  /* timer */
+  if(running){
+    const remaining = Math.max(0, T.impact - t);
+    if(t < T.detect){
+      ui.timerNum.textContent = WARNING_SECONDS.toFixed(1) + ' s';
+      ui.timerFill.style.width = '100%';
+    } else {
+      ui.timerNum.textContent = remaining.toFixed(1) + ' s';
+      ui.timerFill.style.width = (remaining / WARNING_SECONDS * 100) + '%';
+    }
+  }
+
+  /* S-wave rings */
+  const sStart = T.impact - 7.0;
+  if(running && t >= sStart){
+    sRings.forEach((r, i) => {
+      const local = t - sStart - i*0.55;
+      if(local > 0){
+        r.visible = true;
+        const rr = 0.3 + local * 1.55;
+        r.scale.set(rr, rr, rr);
+        r.material.opacity = Math.max(0, 0.7 - local * 0.055);
+      } else { r.visible = false; r.material.opacity = 0; }
+    });
+  }
+
+  /* pre-impact shake */
+  if(running && t >= T.impact - 1.4 && t < T.impact && !collapsed){
+    const s = (t - (T.impact - 1.4)) / 1.4;
+    const amp = 0.055 * s * s;
+    house.position.x = Math.sin(now*0.06) * amp;
+    house.position.z = Math.cos(now*0.047) * amp;
+    house.rotation.z = Math.sin(now*0.055) * amp * 0.45;
+    house.rotation.x = Math.cos(now*0.049) * amp * 0.25;
+  }
+
+  /* impact + collapse */
+  if(running && t >= T.impact){
+    if(!collapsed){
+      collapsed = true;
+      house.visible = false;
+      rubble.visible = true;
+      dustGrp.visible = true;
+      dustPuffs.forEach(d => d.mesh.material.opacity = 0.5);
+    }
+    collapseProgress = Math.min(1, (t - T.impact) / 1.2);
+    const ease = 1 - Math.pow(1 - collapseProgress, 3);
+    rubbleBlocks.forEach(b => {
+      b.mesh.position.y = (b.targetY + 1.6) - 1.6 * ease;
+      b.mesh.rotation.x = b.targetRot[0] * ease;
+      b.mesh.rotation.y = b.targetRot[1] * ease;
+      b.mesh.rotation.z = b.targetRot[2] * ease;
+    });
+    if(t > T.impact && t < T.settle + 2){
+      dustPuffs.forEach(d => {
+        const age = t - T.impact;
+        d.mesh.material.opacity = Math.max(0, 0.5 - age * 0.09);
+        d.mesh.position.y = d.baseY + age * 0.32 + Math.sin(age*0.9 + d.phase) * 0.15;
+        d.mesh.scale.setScalar(1 + age * 0.35);
+      });
+    }
+  }
+
+  /* UI state text */
+  if(running){
+    if(t < T.detect) ui.state.textContent = 'P-WAVE TRAVELLING';
+    else if(t < 9.6) ui.state.textContent = 'P-WAVE DETECTED';
+    else if(t < 12.4) ui.state.textContent = 'SIGNAL SENT';
+    else if(t < 17.6) ui.state.textContent = 'ALARM / EVACUATING';
+    else if(t < T.impact) ui.state.textContent = 'WARNING WINDOW';
+    else if(t < T.settle) ui.state.textContent = 'S-WAVE IMPACT';
+    else ui.state.textContent = 'COMPLETE';
+  }
+
+  /* toasts */
+  if(running && t >= T.detect && !detectedToastShown){
+    detectedToastShown = true;
+    showToast('P-WAVE DETECTED', '18-second warning window started. Occupants are being alerted.');
+    setTimeout(() => ui.toast.classList.remove('show'), 2600);
+  }
+  if(running && t >= T.settle && !completeToastShown){
+    completeToastShown = true;
+    showToast('EVERYONE EVACUATED SAFELY', 'The S-wave arrived after the full 18-second warning window.');
+    setTimeout(() => ui.toast.classList.remove('show'), 3600);
+  }
+
+  /* end card */
+  if(running && t >= T.finish && !ui.endcard.classList.contains('show')){
+    ui.endcard.classList.add('show');
+    running = false;
+    ui.start.disabled = false;
+    ui.pause.disabled = true;
+  }
+
+  /* camera */
+  if(!freeLook){
+    let shotName = 'overview';
+    if(!running && t === 0) shotName = 'overview';
+    else if(t < T.pwaveStart) shotName = 'overview';
+    else if(t < T.detect - 0.4) shotName = 'pwave';
+    else if(t < T.detect + 1.2) shotName = 'detect';
+    else if(t < 9.6) shotName = 'wire';
+    else if(t < 12.4) shotName = 'buzzer';
+    else if(t < 17.6) shotName = 'evac';
+    else if(t < T.impact - 0.5) shotName = 'wide';
+    else if(t < T.settle + 1.0) shotName = 'impact';
+    else shotName = 'final';
+
+    if(shotName !== currentShot){
+      currentShot = shotName;
+      setShot(shotName);
+    }
+
+    if(shotName === 'evac'){
+      const c = new THREE.Vector3();
+      people.forEach(p => c.add(p.mesh.position));
+      c.multiplyScalar(1/people.length);
+      cam.tgtLook.lerp(c, 0.03);
+    }
+
+    const k = 1 - Math.exp(-cam.smooth * dt);
+    cam.pos.lerp(cam.tgtPos, k);
+    cam.look.lerp(cam.tgtLook, k);
+    camera.position.copy(cam.pos);
+    camera.lookAt(cam.look);
+    controls.target.copy(cam.look);
+  } else {
+    controls.update();
+    cam.pos.copy(camera.position);
+    cam.look.copy(controls.target);
+  }
+
+  updateLabels(running ? t : 0);
+  renderer.render(scene, camera);
+}
+
+function showToast(title, text){
+  ui.toastTitle.textContent = title;
+  ui.toastText.textContent = text;
+  ui.toast.classList.add('show');
+}
+
+/* ============================================================
+   UI EVENTS
+   ============================================================ */
+ui.start.addEventListener('click', () => {
+  if(running) return;
+  resetSim();
+  running = true; paused = false; simTime = 0;
+  detectedToastShown = false; completeToastShown = false;
+  lastReal = performance.now();
+  ui.start.disabled = true;
+  ui.pause.disabled = false;
+  ui.pause.textContent = '❚❚ PAUSE';
+  ui.endcard.classList.remove('show');
+  initAudio();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
+
+ui.pause.addEventListener('click', () => {
+  if(!running) return;
+  paused = !paused;
+  ui.pause.textContent = paused ? '▶ RESUME' : '❚❚ PAUSE';
+  lastReal = performance.now();
+});
+
+ui.reset.addEventListener('click', () => {
+  resetSim();
+  detectedToastShown = false; completeToastShown = false;
+});
+
+ui.free.addEventListener('click', () => {
+  freeLook = !freeLook;
+  controls.enabled = freeLook;
+  ui.free.classList.toggle('active', freeLook);
+  if(freeLook){
+    controls.target.copy(cam.look);
+    controls.update();
+    // mobile hint
+    if(!touchHintShown && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)){
+      ui.touchHint.classList.add('on');
+      touchHintShown = true;
+      setTimeout(() => ui.touchHint.classList.remove('on'), 3400);
+    }
+  } else {
+    setShot(currentShot || 'overview');
+  }
+});
+
+ui.full.addEventListener('click', () => {
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen().catch(()=>{});
+});
+
+ui.sound.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  ui.sound.textContent = soundEnabled ? '🔊 SOUND' : '🔇 SOUND';
+  ui.sound.classList.toggle('active', soundEnabled);
+  if(soundEnabled){ initAudio(); if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
+});
+
+$('btnReplay').addEventListener('click', () => {
+  ui.endcard.classList.remove('show');
+  ui.start.click();
+});
+
+$('btnOverview').addEventListener('click', () => {
+  resetSim();
+  detectedToastShown = false; completeToastShown = false;
+});
+
+/* keyboard */
+window.addEventListener('keydown', (e) => {
+  if(e.code === 'Space'){ e.preventDefault(); if(running) ui.pause.click(); }
+  if(e.code === 'KeyR'){ ui.reset.click(); }
+  if(e.code === 'KeyF'){ ui.full.click(); }
+});
+
+/* ============================================================
+   RESIZE
+   ============================================================ */
+function onResize(){
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  svgLayer.setAttribute('viewBox', `0 0 ${w} ${h}`);
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+onResize();
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+resetSim();
+requestAnimationFrame(animate);
+
+setTimeout(() => {
+  $('loader').classList.add('hide');
+  window.__started = true;
+}, 350);
+
+setTimeout(() => {
+  if(!window.__started){
+    $('loader').innerHTML =
+      '<div class="err">Three.js could not be loaded.<br><br>' +
+      'Please check your internet connection (the 3D library is loaded from a CDN), ' +
+      'then refresh the page.</div>';
+  }
+}, 9000);
+</script>
+</body>
+</html>
