@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Seismic Motion Alert</title>
 <style>
   :root{
@@ -13,10 +13,15 @@
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050e18;color:#e8f4fb;
     font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;
     overscroll-behavior:none; touch-action:none;}
+  @supports (height: 100dvh){
+    html,body{height:100dvh;}
+  }
   canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;
     touch-action:none; user-select:none; -webkit-user-select:none;}
-  svg#leaders{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
-  #labels{position:fixed;inset:0;pointer-events:none;z-index:5;}
+  svg#leaders{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;
+    transition:opacity .35s ease;}
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:5;
+    transition:opacity .35s ease;}
 
   /* ---------- labels ---------- */
   .lbl{position:absolute;transform:translate(-50%,-50%);
@@ -30,43 +35,51 @@
   .lbl.good{border-color:rgba(43,224,189,.6);color:#c9fff2;}
 
   /* ---------- header ---------- */
-  #brand{position:fixed;top:22px;left:26px;z-index:6;pointer-events:none;}
-  #brand h1{margin:0;font-size:clamp(18px,2.4vw,30px);letter-spacing:.13em;
+  #brand{position:fixed;top:22px;left:26px;z-index:6;pointer-events:none;
+    transition:opacity .35s ease;}
+  #brand h1{margin:0;font-size:clamp(14px, 1.2vw + 8px, 30px);letter-spacing:.13em;
     font-weight:800;color:#f2fbff;text-shadow:0 2px 14px rgba(0,0,0,.7);}
-  #brand .rule{width:60px;height:2px;margin-top:9px;
+  #brand .rule{width:clamp(32px, 4vw, 60px);height:2px;margin-top:9px;
     background:linear-gradient(90deg,var(--cyan),transparent);}
 
   /* ---------- panels ---------- */
   .panel{position:fixed;z-index:6;background:var(--panel);
     border:1px solid var(--panel-brd);border-radius:11px;
-    backdrop-filter:blur(11px);box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #status{top:22px;right:26px;width:270px;padding:14px 16px 15px;}
+    backdrop-filter:blur(11px);box-shadow:0 12px 40px rgba(0,0,0,.5);
+    transition:opacity .35s ease;}
+  #status{top:22px;right:26px;width:clamp(170px, 22vw, 280px);
+    padding:clamp(9px, 1vw, 15px) clamp(11px, 1.1vw, 16px);}
   .stage-row{display:flex;gap:9px;align-items:baseline;margin-bottom:12px;
     padding-bottom:11px;border-bottom:1px solid rgba(95,224,255,.15);}
-  #stageNum{font-size:19px;font-weight:900;color:var(--cyan);letter-spacing:.05em;}
-  #stageName{font-size:10px;font-weight:800;letter-spacing:.16em;color:#8fd8ee;}
+  #stageNum{font-size:clamp(13px, 1vw + 4px, 19px);font-weight:900;color:var(--cyan);letter-spacing:.05em;}
+  #stageName{font-size:clamp(8px, .5vw + 5px, 10px);font-weight:800;letter-spacing:.16em;color:#8fd8ee;}
   .stat{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
-    font-size:11.5px;color:#a9c6d8;border-bottom:1px solid rgba(95,224,255,.08);}
+    font-size:clamp(9.5px, .6vw + 4px, 11.5px);color:#a9c6d8;
+    border-bottom:1px solid rgba(95,224,255,.08);}
   .stat:last-of-type{border-bottom:0;}
   .stat strong{color:#eefaff;font-weight:800;text-align:right;}
 
   #timerBox{margin-top:12px;padding-top:11px;border-top:1px solid rgba(95,224,255,.15);}
   .timer-line{display:flex;justify-content:space-between;align-items:baseline;
-    font-size:9.5px;letter-spacing:.16em;color:#8fd8ee;font-weight:800;}
-  #timerNum{font-size:22px;font-weight:900;color:#ffe6a8;
+    font-size:clamp(8.5px, .4vw + 4px, 9.5px);letter-spacing:.16em;color:#8fd8ee;font-weight:800;}
+  #timerNum{font-size:clamp(15px, 1.2vw + 6px, 22px);font-weight:900;color:#ffe6a8;
     font-variant-numeric:tabular-nums;letter-spacing:.02em;}
   .timer-bar{height:6px;margin-top:7px;border-radius:99px;background:#0d2a3d;overflow:hidden;}
   #timerFill{height:100%;width:100%;border-radius:99px;
     background:linear-gradient(90deg,var(--teal),#ffe07a,var(--red));
     transition:width .08s linear;}
-  .timer-note{margin-top:6px;font-size:9px;color:#628ba1;letter-spacing:.04em;}
+  .timer-note{margin-top:6px;font-size:clamp(8px, .3vw + 3px, 9px);color:#628ba1;letter-spacing:.04em;}
 
   /* ---------- controls ---------- */
-  #controls{left:26px;bottom:22px;width:min(470px,calc(100vw - 52px));padding:14px 15px 13px;}
+  #controls{left:26px;bottom:22px;
+    width:clamp(280px, 42vw, 490px);
+    max-width:calc(100vw - 52px);
+    padding:clamp(9px, .8vw, 14px) clamp(10px, .9vw, 15px);}
   .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
   .btn-row + .btn-row{margin-top:8px;}
   button{border:0;border-radius:8px;font-family:inherit;font-weight:800;
-    font-size:11px;letter-spacing:.08em;padding:11px 13px;cursor:pointer;
+    font-size:clamp(10px, .4vw + 5px, 11px);letter-spacing:.08em;
+    padding:clamp(9px, .6vw, 11px) clamp(10px, .8vw, 13px);cursor:pointer;
     color:#fff;transition:transform .13s,filter .13s,background .13s;
     touch-action:manipulation;}
   button:hover{filter:brightness(1.14);transform:translateY(-1px);}
@@ -76,29 +89,64 @@
     box-shadow:0 0 22px rgba(255,60,75,.3);}
   button.ghost{background:rgba(20,58,84,.75);border:1px solid rgba(95,224,255,.3);}
   button.ghost.active{background:rgba(43,224,189,.22);border-color:var(--teal);}
-  #hint{margin:10px 0 0;font-size:10px;line-height:1.55;color:#7ba4bd;letter-spacing:.02em;}
+  #hint{margin:10px 0 0;font-size:clamp(9px, .4vw + 4px, 10px);line-height:1.55;
+    color:#7ba4bd;letter-spacing:.02em;}
 
   /* ---------- narration ---------- */
   #narration{left:50%;transform:translateX(-50%);bottom:22px;
-    width:min(600px,calc(100vw - 560px));padding:12px 16px 13px;text-align:center;}
-  #narrTitle{font-size:11px;font-weight:900;letter-spacing:.2em;color:var(--cyan);margin-bottom:5px;}
-  #narrText{font-size:11.5px;line-height:1.55;color:#b9d5e5;}
+    width:clamp(280px, 48vw, 620px);max-width:calc(100vw - 560px);
+    padding:clamp(9px, .8vw, 12px) clamp(12px, 1vw, 16px);text-align:center;}
+  #narrTitle{font-size:clamp(9.5px, .5vw + 4px, 11px);font-weight:900;
+    letter-spacing:.2em;color:var(--cyan);margin-bottom:5px;}
+  #narrText{font-size:clamp(10.5px, .5vw + 5px, 11.5px);line-height:1.55;color:#b9d5e5;}
 
   /* ---------- legend ---------- */
-  #legend{position:fixed;right:26px;bottom:22px;z-index:6;font-size:10px;
-    color:#94b6c9;background:rgba(5,18,30,.75);border:1px solid rgba(95,224,255,.18);
-    border-radius:9px;padding:9px 12px;line-height:1.85;letter-spacing:.03em;}
+  #legend{position:fixed;right:26px;bottom:76px;z-index:6;
+    font-size:clamp(9px, .4vw + 4px, 10px);
+    color:#94b6c9;background:rgba(5,18,30,.75);
+    border:1px solid rgba(95,224,255,.18);
+    border-radius:9px;padding:9px 12px;line-height:1.85;letter-spacing:.03em;
+    transition:opacity .35s ease;}
   #legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;}
+
+  /* ---------- eye toggle ---------- */
+  #eyeBtn{position:fixed;right:22px;bottom:22px;z-index:9;
+    width:46px;height:46px;border-radius:50%;
+    background:rgba(6,20,33,.9);border:1px solid rgba(95,224,255,.45);
+    color:#cbeefb;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;backdrop-filter:blur(9px);
+    box-shadow:0 6px 24px rgba(0,0,0,.5);
+    transition:transform .2s,background .2s,border-color .2s;
+    padding:0;touch-action:manipulation;}
+  #eyeBtn:hover{background:rgba(95,224,255,.18);transform:scale(1.06);border-color:var(--cyan);}
+  #eyeBtn:active{transform:scale(.98);}
+  #eyeBtn svg{display:block;pointer-events:none;}
+
+  /* ---------- ui hidden state ---------- */
+  body.ui-hidden #brand,
+  body.ui-hidden #status,
+  body.ui-hidden #controls,
+  body.ui-hidden #narration,
+  body.ui-hidden #legend,
+  body.ui-hidden #labels,
+  body.ui-hidden #leaders{
+    opacity:0 !important;
+    pointer-events:none !important;
+  }
+  /* eye button stays visible always */
 
   /* ---------- toast ---------- */
   #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);
-    z-index:20;text-align:center;padding:22px 32px;border-radius:14px;
-    background:rgba(3,14,24,.94);border:1px solid rgba(95,224,255,.55);
+    z-index:20;text-align:center;padding:clamp(16px, 2vw, 22px) clamp(20px, 2.4vw, 32px);
+    border-radius:14px;background:rgba(3,14,24,.94);
+    border:1px solid rgba(95,224,255,.55);
     box-shadow:0 24px 80px rgba(0,0,0,.7);opacity:0;pointer-events:none;
     transition:opacity .4s,transform .4s;max-width:min(560px,calc(100vw - 40px));}
   #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
-  #toast strong{display:block;font-size:clamp(18px,2.4vw,26px);letter-spacing:.08em;color:#fff;}
-  #toast span{display:block;margin-top:8px;font-size:12px;color:#a8c8d9;line-height:1.5;}
+  #toast strong{display:block;font-size:clamp(16px, 1.8vw + 6px, 26px);
+    letter-spacing:.08em;color:#fff;}
+  #toast span{display:block;margin-top:8px;font-size:clamp(11px, .5vw + 5px, 12px);
+    color:#a8c8d9;line-height:1.5;}
 
   /* ---------- end card ---------- */
   #endcard{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;
@@ -107,13 +155,15 @@
     padding:30px;backdrop-filter:blur(7px);}
   #endcard.show{display:flex;animation:fadeIn .7s ease;}
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  #endcard h2{margin:0 0 6px;font-size:clamp(24px,4vw,44px);letter-spacing:.14em;
+  #endcard h2{margin:0 0 6px;font-size:clamp(20px, 3vw + 8px, 44px);letter-spacing:.14em;
     color:#fff;text-shadow:0 0 40px rgba(95,224,255,.4);}
-  #endcard .tagline{margin:0 0 22px;font-size:clamp(11px,1.4vw,15px);letter-spacing:.3em;
-    font-weight:800;color:var(--teal);}
-  #endcard .body{max-width:620px;margin:0 0 14px;font-size:13px;line-height:1.7;color:#c2dbe9;}
-  #endcard .disclaimer{max-width:600px;margin:0 0 26px;font-size:10.5px;line-height:1.6;
-    color:#6f95aa;font-style:italic;}
+  #endcard .tagline{margin:0 0 22px;font-size:clamp(10px, .8vw + 5px, 15px);
+    letter-spacing:.3em;font-weight:800;color:var(--teal);}
+  #endcard .body{max-width:620px;margin:0 0 14px;font-size:clamp(11px, .6vw + 5px, 13px);
+    line-height:1.7;color:#c2dbe9;}
+  #endcard .disclaimer{max-width:600px;margin:0 0 26px;
+    font-size:clamp(9.5px, .4vw + 4px, 10.5px);
+    line-height:1.6;color:#6f95aa;font-style:italic;}
   #endcard .btn-row{justify-content:center;}
   #endcard button.primary{flex:0 0 auto;padding:13px 26px;}
 
@@ -130,7 +180,7 @@
   .err{max-width:420px;text-align:center;font-size:12px;line-height:1.6;
     color:#ff9a9f;padding:20px;}
 
-  /* ---------- mobile hint pill ---------- */
+  /* ---------- touch hint pill ---------- */
   #touchHint{position:fixed;left:50%;transform:translateX(-50%);top:16px;z-index:7;
     background:rgba(4,16,28,.85);border:1px solid rgba(95,224,255,.4);
     color:#cbeefb;font-size:10.5px;letter-spacing:.1em;font-weight:700;
@@ -138,31 +188,134 @@
     transition:opacity .4s;backdrop-filter:blur(6px);}
   #touchHint.on{opacity:1;}
 
-  /* ---------- responsive ---------- */
-  @media (max-width:1000px){
-    #narration{width:min(520px,calc(100vw - 60px));bottom:auto;top:110px;}
-    #legend{display:none;}
+  /* =========================================================
+     RESPONSIVE BREAKPOINTS
+     ========================================================= */
+
+  /* Narrow desktop / small laptop */
+  @media (max-width:1200px){
+    #narration{max-width:calc(100vw - 480px);}
   }
+
+  /* Tablet / small landscape */
+  @media (max-width:1000px){
+    #narration{width:min(520px, calc(100vw - 60px));
+      bottom:auto;top:110px;max-width:none;
+      left:50%;transform:translateX(-50%);}
+    #legend{display:none;}
+    #status{top:14px;right:14px;}
+    #brand{left:16px;top:16px;}
+  }
+
+  /* Phone / small tablet portrait */
   @media (max-width:720px){
-    #brand{left:14px;top:14px;}
-    #brand h1{font-size:15px;letter-spacing:.08em;}
-    #brand .rule{width:36px;}
-    #status{right:10px;top:10px;width:174px;padding:9px 11px;}
-    .stage-row{margin-bottom:8px;padding-bottom:8px;}
-    #stageNum{font-size:14px;} #stageName{font-size:8px;letter-spacing:.1em;}
-    .stat{font-size:9.5px;padding:4px 0;}
-    #timerNum{font-size:16px;}
-    .timer-line{font-size:8.5px;}
-    .timer-note{font-size:8px;}
-    #controls{left:10px;bottom:10px;width:calc(100vw - 20px);padding:10px;}
-    button{font-size:10px;padding:10px 11px;}
-    #hint{font-size:9px;}
-    #narration{top:auto;bottom:auto;position:fixed;top:150px;left:12px;right:12px;
-      width:auto;transform:none;padding:9px 12px;}
-    #narrTitle{font-size:9.5px;} #narrText{font-size:10.5px;}
-    #toast{padding:18px 22px;}
-    #endcard h2{font-size:22px;}
-    #endcard .body{font-size:11.5px;}
+    #brand{left:12px;top:12px;}
+    #brand h1{font-size:13px;letter-spacing:.08em;}
+    #brand .rule{width:28px;height:1.5px;margin-top:6px;}
+
+    #status{right:8px;top:8px;width:clamp(140px, 44vw, 190px);
+      padding:8px 10px;}
+    .stage-row{margin-bottom:6px;padding-bottom:6px;gap:6px;}
+    #stageNum{font-size:12px;} #stageName{font-size:7.5px;letter-spacing:.1em;}
+    .stat{font-size:9px;padding:3.5px 0;gap:6px;}
+    #timerBox{margin-top:8px;padding-top:8px;}
+    .timer-line{font-size:8px;}
+    #timerNum{font-size:15px;}
+    .timer-bar{height:5px;margin-top:5px;}
+    .timer-note{font-size:7.5px;margin-top:4px;}
+
+    #controls{left:8px;right:8px;bottom:8px;width:auto;max-width:none;
+      padding:8px 9px;}
+    .btn-row{gap:6px;}
+    .btn-row + .btn-row{margin-top:6px;}
+    button{font-size:9.5px;padding:9px 10px;letter-spacing:.06em;}
+    #hint{font-size:8.5px;margin-top:7px;line-height:1.5;}
+
+    #narration{top:auto;bottom:auto;position:fixed;
+      top:clamp(76px, 22vw, 130px);
+      left:8px;right:8px;width:auto;transform:none;max-width:none;
+      padding:8px 11px;}
+    #narrTitle{font-size:9px;letter-spacing:.16em;margin-bottom:4px;}
+    #narrText{font-size:10px;line-height:1.5;}
+
+    #eyeBtn{right:12px;bottom:150px;width:42px;height:42px;}
+    #eyeBtn svg{width:19px;height:19px;}
+
+    #toast{padding:16px 20px;}
+    #toast strong{font-size:clamp(14px, 4vw, 20px);}
+    #toast span{font-size:10.5px;}
+
+    #endcard{padding:20px;}
+    #endcard h2{font-size:clamp(18px, 5vw, 26px);}
+    #endcard .tagline{font-size:9px;letter-spacing:.22em;margin-bottom:14px;}
+    #endcard .body{font-size:11px;}
+    #endcard .disclaimer{font-size:9px;margin-bottom:18px;}
+    #endcard button.primary{padding:11px 20px;font-size:10px;}
+
+    #touchHint{font-size:9px;padding:6px 11px;top:8px;}
+  }
+
+  /* Very small phones (Samsung J2, iPhone SE, small Androids) */
+  @media (max-width:420px){
+    #brand h1{font-size:12px;}
+    #status{width:clamp(128px, 46vw, 160px);padding:7px 9px;
+      border-radius:9px;}
+    #stageNum{font-size:11px;} #stageName{font-size:7px;}
+    .stat{font-size:8.5px;padding:3px 0;}
+    #timerNum{font-size:14px;}
+    .timer-line{font-size:7.5px;}
+    .timer-note{font-size:7px;}
+
+    #controls{padding:7px 8px;border-radius:9px;}
+    button{font-size:9px;padding:8px 9px;}
+    #hint{font-size:8px;}
+
+    #narration{top:clamp(66px, 20vw, 100px);}
+    #narrTitle{font-size:8.5px;}
+    #narrText{font-size:9.5px;}
+
+    #eyeBtn{right:10px;bottom:130px;width:38px;height:38px;}
+    #eyeBtn svg{width:17px;height:17px;}
+  }
+
+  /* Ultra small */
+  @media (max-width:340px){
+    #brand h1{font-size:11px;}
+    #status{width:130px;}
+    .stat{font-size:8px;}
+    #timerNum{font-size:13px;}
+    button{font-size:8.5px;padding:7px 8px;}
+    #eyeBtn{bottom:120px;width:36px;height:36px;}
+  }
+
+  /* Landscape phones */
+  @media (max-height:520px) and (orientation:landscape){
+    #brand{top:8px;left:10px;}
+    #brand h1{font-size:12px;}
+    #brand .rule{display:none;}
+    #status{top:6px;right:6px;width:150px;padding:6px 8px;}
+    .stat{font-size:8.5px;padding:2.5px 0;}
+    #timerNum{font-size:13px;}
+    #controls{left:6px;bottom:6px;width:min(340px, 46vw);padding:6px 7px;}
+    button{font-size:9px;padding:7px 8px;}
+    #hint{display:none;}
+    #narration{top:auto;bottom:6px;left:auto;right:170px;
+      width:min(380px, 40vw);transform:none;padding:6px 10px;}
+    #narrTitle{font-size:8.5px;margin-bottom:3px;}
+    #narrText{font-size:9px;line-height:1.4;}
+    #eyeBtn{bottom:12px;right:12px;width:38px;height:38px;}
+  }
+
+  /* Large desktop / projector */
+  @media (min-width:1600px){
+    #status{width:300px;padding:16px 18px;}
+    .stat{font-size:12.5px;padding:7px 0;}
+    #stageNum{font-size:21px;}
+    #timerNum{font-size:25px;}
+    #controls{width:520px;padding:16px 18px;}
+    button{font-size:12px;padding:12px 16px;}
+    #narration{width:680px;}
+    #narrText{font-size:12.5px;}
   }
 </style>
 </head>
@@ -222,6 +375,21 @@
   <div><i style="background:#2be0bd"></i>Safe evacuation zone</div>
 </div>
 
+<!-- Eye toggle — always visible, hides/shows the rest of the UI -->
+<button id="eyeBtn" aria-label="Toggle interface visibility" title="Hide / show interface">
+  <svg id="eyeOpen" width="22" height="22" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
+  </svg>
+  <svg id="eyeClosed" width="22" height="22" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+       style="display:none">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+    <line x1="1" y1="1" x2="23" y2="23"></line>
+  </svg>
+</button>
+
 <div id="toast"><strong id="toastTitle"></strong><span id="toastText"></span></div>
 
 <div id="endcard">
@@ -256,7 +424,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const $ = id => document.getElementById(id);
 
 /* ============================================================
-   RENDERER / SCENE / CAMERA
+   RENDERER / SCENE / CAMERA  (smart resolution)
    ============================================================ */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050e18);
@@ -264,7 +432,15 @@ scene.fog = new THREE.Fog(0x050e18, 38, 88);
 
 const canvas = $('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+// Smart DPR: lower cap on small screens for stable performance
+function computeDPR(){
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const cap = w < 480 ? 1.5 : (w < 900 ? 1.8 : 2);
+  return Math.min(dpr, cap);
+}
+renderer.setPixelRatio(computeDPR());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -372,7 +548,8 @@ const wallTop = 4.95;
 
 const SENSOR = { x:1.5, y:-2.35, z:2.6, r:0.44, h:1.05 };
 const SOURCE = { x:8.6, y:-2.65, z:2.1 };
-const BUZZER = { x:-3.2, y:2.55, z:-1.82 };
+// ---- Buzzer moved to the LEFT side of the back wall so the open front reveals it
+const BUZZER = { x:-5.0, y:2.55, z:-1.82 };
 const SAFE   = { x:-10.6, z:1.5 };
 const CUT_Z  = 2.5;
 
@@ -385,7 +562,6 @@ ground.position.set(-1, 0.005, -1);
 ground.receiveShadow = true;
 scene.add(ground);
 
-// grass patch around the house
 const grass = new THREE.Mesh(new THREE.PlaneGeometry(24,16), M.grass);
 grass.rotation.x = -Math.PI/2;
 grass.position.set(hx, 0.012, hz);
@@ -403,7 +579,6 @@ box(soilW, 1.9, soilDepth, -1, -0.95, soilCenterZ, M.soilTop);
 box(soilW, 1.3, soilDepth, -1, -2.55, soilCenterZ, M.soilMid);
 box(soilW, 0.6, soilDepth, -1, -3.50, soilCenterZ, M.soilRock);
 
-// cut-face grid
 (function(){
   const pts = [];
   const x0 = -14, x1 = 12, y0 = -3.8, y1 = 0;
@@ -417,51 +592,44 @@ box(soilW, 0.03, 0.03, -1, 0.0, soilFrontZ,
   new THREE.MeshBasicMaterial({ color:0x5fe0ff, transparent:true, opacity:0.35 }));
 
 /* ============================================================
-   HOUSE  (much more detailed)
+   HOUSE
    ============================================================ */
 const house = new THREE.Group();
 house.name = 'IntactBuilding';
 scene.add(house);
 
-/* ---- foundation + slabs ---- */
 box(hw+0.7, 0.5, hd+0.7, hx, bY-0.27, hz, M.concreteD, house);
 box(hw+0.2, 0.16, hd+0.2, hx, bY-0.06, hz, M.concrete, house);
 box(hw+0.2, 0.18, hd+0.2, hx, floor2Y, hz, M.concrete, house);
 
-/* ---- walls ---- */
 const wallT = 0.18;
-// BACK wall (full)
 box(hw, floor2Y-bY, wallT, hx, bY+(floor2Y-bY)/2, hz-hd/2, M.wallIn, house);
 box(hw, wallTop-floor2Y, wallT, hx, floor2Y+(wallTop-floor2Y)/2, hz-hd/2, M.wallWarm, house);
-// LEFT wall
 box(wallT, wallTop-bY, hd, hx-hw/2, bY+(wallTop-bY)/2, hz, M.wallOut, house);
-// RIGHT wall
 box(wallT, wallTop-bY, hd, hx+hw/2, bY+(wallTop-bY)/2, hz, M.wallOut, house);
-// FRONT wall — second floor only
 box(hw, wallTop-floor2Y, wallT, hx, floor2Y+(wallTop-floor2Y)/2, hz+hd/2, M.wallWarm, house);
 
-/* ---- ground-floor front wall with real door opening ---- */
-// Wall from x = -3.5 to x = -1.5 (i.e. from hx+0.5 to hx+hw/2)
+/* ground-floor front wall (door opening only) */
 const frontWallCenterX = -2.5, frontWallW = 2.0;
 const doorW = 0.9, doorH = 2.15;
 const doorCenterX = -2.2, doorLeftX = doorCenterX - doorW/2, doorRightX = doorCenterX + doorW/2;
-// left panel
 box(doorLeftX - (-3.5), floor2Y-bY, wallT,
     (-3.5 + doorLeftX)/2, bY+(floor2Y-bY)/2, hz+hd/2, M.wallWarm, house);
-// right panel
 box((-1.5) - doorRightX, floor2Y-bY, wallT,
     (doorRightX + (-1.5))/2, bY+(floor2Y-bY)/2, hz+hd/2, M.wallWarm, house);
-// above door
 box(doorW, floor2Y - (bY + doorH), wallT,
     doorCenterX, (bY + doorH + floor2Y)/2, hz+hd/2, M.wallWarm, house);
 
-/* ---- cut-edge frame highlighting the cutaway ---- */
+/* cut edge */
 const cutMat = new THREE.MeshStandardMaterial({ color:0x5fe0ff, emissive:0x1d6d8a, emissiveIntensity:0.9, roughness:0.4 });
 box(0.06, floor2Y-bY, 0.06, hx-hw/2, bY+(floor2Y-bY)/2, hz+hd/2, cutMat, house);
 box(hw, 0.06, 0.06, hx, floor2Y-0.03, hz+hd/2, cutMat, house);
 
+/* interior partition — repositioned so it never crosses the wire path */
+box(0.12, floor2Y-bY-0.1, 1.0, hx+0.9, bY+(floor2Y-bY)/2, hz+0.5, M.wallIn, house);
+
 /* ============================================================
-   DOOR — hinged, animated
+   DOOR (hinged)
    ============================================================ */
 const doorPivot = new THREE.Group();
 doorPivot.position.set(doorLeftX, bY, hz+hd/2);
@@ -472,7 +640,6 @@ doorMesh.position.set(doorW/2, doorH/2, 0);
 doorMesh.castShadow = true; doorMesh.receiveShadow = true;
 doorPivot.add(doorMesh);
 
-// door panels (decorative recessed rectangles)
 for(let r = 0; r < 2; r++){
   for(let c = 0; c < 2; c++){
     const p = new THREE.Mesh(
@@ -487,14 +654,12 @@ for(let r = 0; r < 2; r++){
     doorMesh.add(p);
   }
 }
-
-// door knob
 const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), M.metal);
 knob.position.set(doorW - 0.12, doorH/2, 0.06);
 doorMesh.add(knob);
 
 /* ============================================================
-   ROOF — gabled with overhang, ridge, chimney
+   ROOF
    ============================================================ */
 (function buildRoof(){
   const overhang = 0.45;
@@ -505,21 +670,18 @@ doorMesh.add(knob);
   const roofLen = hd + overhang*2;
   const roofThick = 0.16;
 
-  // right slope
   const rightSlope = new THREE.Mesh(new THREE.BoxGeometry(slant, roofThick, roofLen), M.roof);
   rightSlope.position.set(hx + halfSpan/2, wallTop + rise/2, hz);
   rightSlope.rotation.z = -pitch;
   rightSlope.castShadow = true; rightSlope.receiveShadow = true;
   house.add(rightSlope);
 
-  // left slope
   const leftSlope = new THREE.Mesh(new THREE.BoxGeometry(slant, roofThick, roofLen), M.roof);
   leftSlope.position.set(hx - halfSpan/2, wallTop + rise/2, hz);
   leftSlope.rotation.z = pitch;
   leftSlope.castShadow = true; leftSlope.receiveShadow = true;
   house.add(leftSlope);
 
-  // gable triangles
   const shape = new THREE.Shape();
   shape.moveTo(-halfSpan, 0);
   shape.lineTo(halfSpan, 0);
@@ -538,12 +700,10 @@ doorMesh.add(knob);
   backGable.castShadow = true; backGable.receiveShadow = true;
   house.add(backGable);
 
-  // ridge cap
   const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, roofLen + 0.12), M.roofTrim);
   ridge.position.set(hx, wallTop + rise + 0.03, hz);
   ridge.castShadow = true; house.add(ridge);
 
-  // fascia trim
   const fascia1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, roofLen + 0.2), M.trim);
   fascia1.position.set(hx - halfSpan - 0.02, wallTop - 0.02, hz);
   fascia1.castShadow = true; house.add(fascia1);
@@ -551,7 +711,6 @@ doorMesh.add(knob);
   fascia2.position.set(hx + halfSpan + 0.02, wallTop - 0.02, hz);
   fascia2.castShadow = true; house.add(fascia2);
 
-  // chimney (back-right, tucked away)
   const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.0, 0.6), M.wallWarm);
   chimney.position.set(hx + 1.7, 4.6, hz - 1.4);
   chimney.castShadow = true; chimney.receiveShadow = true;
@@ -562,7 +721,7 @@ doorMesh.add(knob);
 })();
 
 /* ============================================================
-   WINDOWS + SHUTTERS + PORCH + STEP
+   WINDOWS + SHUTTERS + PORCH
    ============================================================ */
 function makeWindow(parent, px, py, pz, w, h, rotY=0){
   const g = new THREE.Group();
@@ -570,23 +729,18 @@ function makeWindow(parent, px, py, pz, w, h, rotY=0){
   g.rotation.y = rotY;
   parent.add(g);
 
-  // glass
   const glass = new THREE.Mesh(new THREE.BoxGeometry(w-0.08, h-0.08, 0.04), M.glass);
   glass.position.z = 0.005; g.add(glass);
 
-  // frame
   const fT = 0.07, fD = 0.1;
   box(fT, h, fD, -w/2 + fT/2, 0, 0, M.trim, g);
   box(fT, h, fD,  w/2 - fT/2, 0, 0, M.trim, g);
   box(w - 2*fT, fT, fD, 0, h/2 - fT/2, 0, M.trim, g);
   box(w - 2*fT, fT, fD, 0, -h/2 + fT/2, 0, M.trim, g);
-  // mullions
   box(0.035, h - 0.08, 0.09, 0, 0, 0, M.trim, g);
   box(w - 0.08, 0.035, 0.09, 0, 0, 0, M.trim, g);
 
-  // shutters
-  const sw = 0.26;
-  const sh = h + 0.08;
+  const sw = 0.26, sh = h + 0.08;
   const leftShut = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, 0.05), M.shutter);
   leftShut.position.set(-w/2 - sw/2 - 0.02, 0, 0.05);
   leftShut.castShadow = true;
@@ -596,26 +750,20 @@ function makeWindow(parent, px, py, pz, w, h, rotY=0){
   rightShut.castShadow = true;
   g.add(rightShut);
 
-  // window sill
   box(w + 2*sw + 0.15, 0.08, 0.16, 0, -h/2 - 0.06, 0.04, M.trim, g);
 }
 
-// second-floor front windows
 makeWindow(house, hx-1.35, floor2Y+0.95, hz+hd/2+0.02, 1.05, 0.98);
 makeWindow(house, hx+ 0.55, floor2Y+0.95, hz+hd/2+0.02, 1.05, 0.98);
-// second-floor left side
 makeWindow(house, hx-hw/2-0.02, floor2Y+0.95, hz+0.7, 1.0, 0.95, Math.PI/2);
-// ground-floor side window (left side, near the back)
 makeWindow(house, hx-hw/2-0.02, bY+1.55, hz-0.9, 0.95, 1.0, Math.PI/2);
 
-// porch over door
 const porchW = 1.9, porchD = 1.0;
 const porchTop = new THREE.Mesh(new THREE.BoxGeometry(porchW, 0.1, porchD), M.roof);
 porchTop.position.set(doorCenterX, bY + doorH + 0.28, hz + hd/2 + porchD/2 - 0.05);
 porchTop.castShadow = true; porchTop.receiveShadow = true;
 house.add(porchTop);
 
-// porch brackets
 const bL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), M.trim);
 bL.position.set(doorCenterX - porchW/2 + 0.08, bY + doorH + 0.0, hz + hd/2 + 0.25);
 house.add(bL);
@@ -623,47 +771,38 @@ const bR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), M.trim);
 bR.position.set(doorCenterX + porchW/2 - 0.08, bY + doorH + 0.0, hz + hd/2 + 0.25);
 house.add(bR);
 
-// front step
 const step = new THREE.Mesh(new THREE.BoxGeometry(porchW - 0.2, 0.1, 0.4), M.concrete);
 step.position.set(doorCenterX, 0.15, hz + hd/2 + 0.2);
 step.castShadow = true; step.receiveShadow = true;
 house.add(step);
 
-// door number plate
 const plate = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.02), M.metalDark);
 plate.position.set(doorCenterX, bY + doorH + 0.35, hz + hd/2 + 0.06);
 house.add(plate);
 
 /* ============================================================
-   INTERIOR FURNITURE  (ground floor room)
+   INTERIOR FURNITURE
    ============================================================ */
-// partition (adds depth on the back-left)
-box(0.12, floor2Y-bY-0.1, 1.5, hx+0.9, bY+(floor2Y-bY)/2, hz-1.15, M.wallIn, house);
-
-// table + chairs
-const tableTop = box(1.5, 0.09, 0.85, hx-1.4, bY+0.72, hz+0.35, M.wood, house);
+box(1.5, 0.09, 0.85, hx-1.4, bY+0.72, hz+0.35, M.wood, house);
 for(const dx of [-0.62,0.62]) for(const dz of [-0.32,0.32])
   cyl(0.035,0.035,0.68, hx-1.4+dx, bY+0.36, hz+0.35+dz, M.metalDark, house, 8);
 
-// sofa
 box(1.5, 0.32, 0.6, hx+1.2, bY+0.28, hz+0.6, M.fabricA, house);
 box(1.5, 0.55, 0.14, hx+1.2, bY+0.65, hz+0.32, M.fabricA, house);
-// cushions
 box(0.68, 0.12, 0.5, hx+0.9, bY+0.48, hz+0.58, M.fabricB, house);
 box(0.68, 0.12, 0.5, hx+1.5, bY+0.48, hz+0.58, M.fabricB, house);
 
-// side cabinet
 box(0.75, 0.5, 0.42, hx-2.0, bY+0.4, hz-1.35, M.wood, house);
 box(0.75, 0.05, 0.42, hx-2.0, bY+0.68, hz-1.35, M.wallWarm, house);
 
-// rug
-const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshStandardMaterial({ color:0x7a3f38, roughness:0.95 }));
+const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6),
+  new THREE.MeshStandardMaterial({ color:0x7a3f38, roughness:0.95 }));
 rug.rotation.x = -Math.PI/2;
 rug.position.set(hx-0.6, bY+0.001, hz+0.35);
 house.add(rug);
 
 /* ============================================================
-   INDOOR BUZZER
+   INDOOR BUZZER  (now on the LEFT part of the back wall)
    ============================================================ */
 const buzzerGrp = new THREE.Group();
 buzzerGrp.position.set(BUZZER.x, BUZZER.y, BUZZER.z);
@@ -722,13 +861,10 @@ function makePerson(shirtHex, hairHex){
   return g;
 }
 
-/* ---- EVACUATION PATHS — everyone exits through the front door ---- */
-// doorCenterX = -2.2, doorCenterZ = hz + hd/2 = 2.0
 const DOOR_IN  = new THREE.Vector3(doorCenterX, bY,    1.75);
 const DOOR_OUT = new THREE.Vector3(doorCenterX, 0.03,  2.35);
 
 const PEOPLE_PATHS = [
-  // Person A — starts front-left inside
   [
     new THREE.Vector3(hx-1.5, bY,    hz+0.3),
     new THREE.Vector3(hx-3.0, bY,    hz+1.0),
@@ -741,7 +877,6 @@ const PEOPLE_PATHS = [
     new THREE.Vector3(-9.6,   0.03, 2.2),
     new THREE.Vector3(SAFE.x+0.55, 0.03, SAFE.z+0.4),
   ],
-  // Person B — starts near the table
   [
     new THREE.Vector3(hx-0.4, bY,    hz-0.5),
     new THREE.Vector3(hx-0.5, bY,    hz+0.8),
@@ -754,7 +889,6 @@ const PEOPLE_PATHS = [
     new THREE.Vector3(-9.8,   0.03, 2.4),
     new THREE.Vector3(SAFE.x-0.55, 0.03, SAFE.z+0.15),
   ],
-  // Person C — starts on the sofa side (right)
   [
     new THREE.Vector3(hx+0.9, bY,    hz+0.9),
     new THREE.Vector3(hx+0.4, bY,    hz+1.5),
@@ -800,7 +934,7 @@ safeRing.position.set(SAFE.x, 0.09, SAFE.z);
 scene.add(safeRing);
 
 /* ============================================================
-   UNDERGROUND SENSOR — EMPTY SILVER HOUSING
+   UNDERGROUND SENSOR
    ============================================================ */
 const shaft = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 3.2), M.shaft);
 shaft.position.set(SENSOR.x, -1.65, CUT_Z + 0.012);
@@ -855,7 +989,7 @@ indicatorLight.position.set(SENSOR.x, SENSOR.y + 0.34, SENSOR.z + SENSOR.r + 0.0
 scene.add(indicatorLight);
 
 /* ============================================================
-   PROTECTED WIRING
+   PROTECTED WIRING (routed to new buzzer position)
    ============================================================ */
 const wireCenterPath = [
   new THREE.Vector3(SENSOR.x, SENSOR.y - 0.42, SENSOR.z),
@@ -865,7 +999,8 @@ const wireCenterPath = [
   new THREE.Vector3(-2.20,   0.30,            1.30),
   new THREE.Vector3(-3.20,   0.30,            1.30),
   new THREE.Vector3(-3.20,   0.30,           -1.72),
-  new THREE.Vector3(-3.20,   BUZZER.y - 0.10, -1.80),
+  new THREE.Vector3(-5.00,   0.30,           -1.72),
+  new THREE.Vector3(-5.00,   BUZZER.y - 0.10, -1.82),
 ];
 
 function buildParallelWire(centerPath, offset, mat, radius){
@@ -900,7 +1035,7 @@ scene.add(signalPulse);
 const signalCurve = new THREE.CatmullRomCurve3(wireCenterPath);
 
 /* ============================================================
-   EARTHQUAKE SOURCE + WAVE RINGS
+   EARTHQUAKE SOURCE + RINGS
    ============================================================ */
 const sourceGrp = new THREE.Group();
 sourceGrp.position.set(SOURCE.x, SOURCE.y, SOURCE.z);
@@ -943,7 +1078,7 @@ for(let i=0;i<4;i++){
 }
 
 /* ============================================================
-   COLLAPSED BUILDING (prebuilt)
+   COLLAPSED BUILDING
    ============================================================ */
 const rubble = new THREE.Group();
 rubble.name = 'CollapsedBuilding';
@@ -985,7 +1120,7 @@ for(let i=0;i<20;i++){
 }
 
 /* ============================================================
-   LABELS + LEADER LINES
+   LABELS + LEADERS
    ============================================================ */
 const labelLayer = $('labels');
 const svgLayer = $('leaders');
@@ -1101,7 +1236,7 @@ function updateLabels(t){
 }
 
 /* ============================================================
-   CAMERA SYSTEM
+   CAMERA SHOTS
    ============================================================ */
 const cam = {
   pos:  new THREE.Vector3(14, 9, 20),
@@ -1116,7 +1251,8 @@ const SHOTS = {
   pwave:    { pos:[9.5, -1.2, 12],   look:[5.0, -2.4, 2.6] },
   detect:   { pos:[4.2, -1.6, 8.4],  look:[1.5, -2.35, 2.6] },
   wire:     { pos:[-1.2, -2.6, 9.5], look:[-2.0, -1.1, 2.4] },
-  buzzer:   { pos:[-2.6, 2.55, 2.6], look:[-3.25, 2.5, -1.8] },
+  // ---- Zoomed-in buzzer shot at its new left-side position
+  buzzer:   { pos:[-4.4, 2.6, 3.2],  look:[-5.0, 2.55, -1.82] },
   evac:     { pos:[-7.5, 3.6, 11.5], look:[-7.0, 1.3, 1.5] },
   wide:     { pos:[11.5, 6.5, 17],   look:[-2.5, 1.6, 0] },
   impact:   { pos:[15.5, 8.0, 20],   look:[-4.0, 2.2, 0] },
@@ -1133,7 +1269,6 @@ controls.maxPolarAngle = Math.PI * 0.96;
 controls.enabled = false;
 controls.enablePan = true;
 controls.screenSpacePanning = true;
-// touch gestures: 1-finger rotate, 2-finger dolly+pan
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
 function setShot(name){
@@ -1151,11 +1286,11 @@ const T = {
   detect:     6.0,
   doorOpen:   10.0,
   peopleGo:   11.0,
-  impact:    24.0,    // detect + 18
+  impact:    24.0,
   settle:    30.0,
   finish:    36.0,
 };
-const WARNING_SECONDS = T.impact - T.detect;   // = 18
+const WARNING_SECONDS = T.impact - T.detect; // 18
 
 /* ============================================================
    STATE
@@ -1167,10 +1302,12 @@ let doorOpenAmount = 0;
 let detectedToastShown = false, completeToastShown = false;
 let currentShot = '';
 let touchHintShown = false;
+let uiHidden = false;
 
 const ui = {
   start: $('btnStart'), pause: $('btnPause'), reset: $('btnReset'),
   free: $('btnFree'), full: $('btnFull'), sound: $('btnSound'),
+  eye: $('eyeBtn'), eyeOpen: $('eyeOpen'), eyeClosed: $('eyeClosed'),
   state: $('stState'), signal: $('stSignal'), buzzer: $('stBuzzer'), people: $('stPeople'),
   timerNum: $('timerNum'), timerFill: $('timerFill'),
   stageNum: $('stageNum'), stageName: $('stageName'),
@@ -1309,13 +1446,11 @@ function animate(){
 
   applyStage(stageIndex(t));
 
-  /* subtle ground rumble at start */
   if(running && t < 4 && !freeLook){
     const a = Math.max(0, 1 - t/4) * 0.012;
     house.position.x = Math.sin(now*0.05) * a;
   }
 
-  /* P-wave rings */
   if(running){
     pRings.forEach((r, i) => {
       const local = t - T.pwaveStart - i*0.30;
@@ -1328,14 +1463,12 @@ function animate(){
     });
   }
 
-  /* source glow */
   if(running && t > T.pwaveStart - 0.4 && t < T.settle){
     sourceLight.intensity = 3.0 + Math.sin(now*0.012) * 1.4;
   } else sourceLight.intensity = 0;
   sourceCore.scale.setScalar(1 + 0.07 * Math.sin(now * 0.005));
   sourceInner.scale.setScalar(1 + 0.14 * Math.sin(now * 0.008));
 
-  /* detection */
   if(running && t >= T.detect){
     indicatorMat.color.setHex(0xff3b4b);
     indicatorMat.emissive.setHex(0xff1024);
@@ -1344,7 +1477,6 @@ function animate(){
     ui.signal.textContent = t < 8.0 ? 'DETECTED' : (t < T.impact ? 'SENT' : 'COMPLETE');
   }
 
-  /* signal pulse */
   const pulseStart = T.detect + 0.35;
   const pulseDur = 3.0;
   if(running && t >= pulseStart && t <= pulseStart + pulseDur){
@@ -1353,13 +1485,11 @@ function animate(){
     signalPulse.position.copy(signalCurve.getPointAt(Math.min(1, u)));
   } else signalPulse.visible = false;
 
-  /* door opens when alarm starts */
   const doorTarget = (running && t >= T.doorOpen) ? Math.PI/2 * 0.92 : 0;
   doorOpenAmount += (doorTarget - doorOpenAmount) * Math.min(1, dt * 3.2);
   doorPivot.rotation.y = doorOpenAmount;
 
-  /* buzzer */
-  const alarmStart = T.detect + 4.0;      // t = 10
+  const alarmStart = T.detect + 4.0;
   const alarmEnd   = T.settle;
   const alarmActive = running && t >= alarmStart && t < alarmEnd;
   buzzerOn = alarmActive;
@@ -1384,7 +1514,6 @@ function animate(){
     if(running && t >= alarmEnd) ui.buzzer.textContent = 'SILENT';
   }
 
-  /* evacuation */
   const evacStart = T.peopleGo;
   const evacDur   = 6.0;
   if(running && t >= evacStart){
@@ -1397,13 +1526,11 @@ function animate(){
       const ahead = samplePath(p.path, Math.min(1, e + 0.02));
       const dir = new THREE.Vector3().subVectors(ahead, pos);
       if(dir.lengthSq() > 0.0001) p.mesh.rotation.y = Math.atan2(dir.x, dir.z);
-      // walk bob
       if(u < 1) p.mesh.position.y += Math.abs(Math.sin(t*7 + i)) * 0.03;
     });
     ui.people.textContent = base >= 1 ? 'SAFE OUTSIDE' : 'EVACUATING';
   }
 
-  /* timer */
   if(running){
     const remaining = Math.max(0, T.impact - t);
     if(t < T.detect){
@@ -1415,7 +1542,6 @@ function animate(){
     }
   }
 
-  /* S-wave rings */
   const sStart = T.impact - 7.0;
   if(running && t >= sStart){
     sRings.forEach((r, i) => {
@@ -1429,7 +1555,6 @@ function animate(){
     });
   }
 
-  /* pre-impact shake */
   if(running && t >= T.impact - 1.4 && t < T.impact && !collapsed){
     const s = (t - (T.impact - 1.4)) / 1.4;
     const amp = 0.055 * s * s;
@@ -1439,7 +1564,6 @@ function animate(){
     house.rotation.x = Math.cos(now*0.049) * amp * 0.25;
   }
 
-  /* impact + collapse */
   if(running && t >= T.impact){
     if(!collapsed){
       collapsed = true;
@@ -1466,7 +1590,6 @@ function animate(){
     }
   }
 
-  /* UI state text */
   if(running){
     if(t < T.detect) ui.state.textContent = 'P-WAVE TRAVELLING';
     else if(t < 9.6) ui.state.textContent = 'P-WAVE DETECTED';
@@ -1477,7 +1600,6 @@ function animate(){
     else ui.state.textContent = 'COMPLETE';
   }
 
-  /* toasts */
   if(running && t >= T.detect && !detectedToastShown){
     detectedToastShown = true;
     showToast('P-WAVE DETECTED', '18-second warning window started. Occupants are being alerted.');
@@ -1489,7 +1611,6 @@ function animate(){
     setTimeout(() => ui.toast.classList.remove('show'), 3600);
   }
 
-  /* end card */
   if(running && t >= T.finish && !ui.endcard.classList.contains('show')){
     ui.endcard.classList.add('show');
     running = false;
@@ -1497,7 +1618,6 @@ function animate(){
     ui.pause.disabled = true;
   }
 
-  /* camera */
   if(!freeLook){
     let shotName = 'overview';
     if(!running && t === 0) shotName = 'overview';
@@ -1581,7 +1701,6 @@ ui.free.addEventListener('click', () => {
   if(freeLook){
     controls.target.copy(cam.look);
     controls.update();
-    // mobile hint
     if(!touchHintShown && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)){
       ui.touchHint.classList.add('on');
       touchHintShown = true;
@@ -1604,6 +1723,16 @@ ui.sound.addEventListener('click', () => {
   if(soundEnabled){ initAudio(); if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
 });
 
+/* ---------- EYE TOGGLE: hide/show every UI element ---------- */
+ui.eye.addEventListener('click', () => {
+  uiHidden = !uiHidden;
+  document.body.classList.toggle('ui-hidden', uiHidden);
+  // icon swap: when UI is visible we show "eye-closed" (click to hide)
+  // when UI is hidden we show "eye-open" (click to show)
+  ui.eyeOpen.style.display  = uiHidden ? 'block' : 'none';
+  ui.eyeClosed.style.display = uiHidden ? 'none' : 'block';
+});
+
 $('btnReplay').addEventListener('click', () => {
   ui.endcard.classList.remove('show');
   ui.start.click();
@@ -1614,26 +1743,29 @@ $('btnOverview').addEventListener('click', () => {
   detectedToastShown = false; completeToastShown = false;
 });
 
-/* keyboard */
 window.addEventListener('keydown', (e) => {
   if(e.code === 'Space'){ e.preventDefault(); if(running) ui.pause.click(); }
   if(e.code === 'KeyR'){ ui.reset.click(); }
   if(e.code === 'KeyF'){ ui.full.click(); }
+  if(e.code === 'KeyH'){ ui.eye.click(); }
 });
 
 /* ============================================================
-   RESIZE
+   RESIZE  (smart — recomputes DPR, camera aspect, SVG viewBox)
    ============================================================ */
 function onResize(){
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(computeDPR());
   svgLayer.setAttribute('viewBox', `0 0 ${w} ${h}`);
 }
 window.addEventListener('resize', onResize);
-window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+window.addEventListener('orientationchange', () => setTimeout(onResize, 220));
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', onResize);
+}
 onResize();
 
 /* ============================================================
